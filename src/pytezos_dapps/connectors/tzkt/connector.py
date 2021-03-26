@@ -1,7 +1,6 @@
 
 
-from pytezos_indexer.connectors.abstract import EventsConnector
-from pytezos_indexer.connectors.tzkt.models import Transaction
+from pytezos_dapps.connectors.abstract import EventsConnector
 from tortoise.exceptions import OperationalError
 
 from signalrcore_async.hub_connection_builder import HubConnectionBuilder
@@ -98,12 +97,8 @@ class TzktEventsConnector(EventsConnector):
             if item['type'] != 1:
                 continue
             for transaction in item['data']:
-                transaction_model = Transaction.from_json(transaction)
-                with suppress(OperationalError):
-                    await transaction_model.save()
 
-    async def count_transactions(self) -> int:
-        return await Transaction.filter().count()
+                print(transaction)
 
     async def start(self):
         await self._get_client().start()

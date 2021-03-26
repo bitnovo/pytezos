@@ -19,8 +19,10 @@ class TzktEventsConnector(EventsConnector):
     def __init__(
         self,
         url: str,
+        contract: str,
     ):
         self._url = url
+        self._contract = contract
         self._handlers = {}
         self._client: Optional[BaseHubConnection] = None
         self._operation_subscriptions = 0
@@ -40,6 +42,7 @@ class TzktEventsConnector(EventsConnector):
                     }
                 )
             ).build()
+            self._client.on_open(self.on_connect)
 
         return self._client
 
@@ -48,6 +51,9 @@ class TzktEventsConnector(EventsConnector):
 
     async def stop(self):
         ...
+
+    async def on_connect(self):
+        await self.subscribe_to_operations(self._contract, ['transaction'])
 
     async def subscribe_to_operations(self, address: str, types: List[str]) -> None:
         self._get_client().on('operations', self.on_operation_message)

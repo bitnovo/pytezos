@@ -1,4 +1,5 @@
 from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
+from pytezos_dapps.dapps.hic_et_nunc.handlers import on_mint, on_transfer, on_curate, on_collect
 from time import sleep
 import logging
 from tortoise import Tortoise
@@ -21,16 +22,18 @@ async def run():
         await Tortoise.generate_schemas()
 
     connector = TzktEventsConnector(url)
-    await connector.start()
+
+    await connector.set_handler('mint', on_mint)
+    await connector.set_handler('transfer', on_transfer)
+    await connector.set_handler('curate', on_curate)
+    await connector.set_handler('collect', on_collect)
+
 
     await asyncio.gather(
-        # monitor(connector),
+        connector.start(),
         connector.subscribe_to_operations(address, ['transaction']),
         # connector.fetch_operations(address, ['transaction']),
         # monitor(connector)
     )
-
-    while True:
-        await asyncio.sleep(1)
 
     await Tortoise.close_connections()

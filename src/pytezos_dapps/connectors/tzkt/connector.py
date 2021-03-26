@@ -8,8 +8,7 @@ from signalrcore_async.hub.base_hub_connection import BaseHubConnection
 from signalrcore_async.hub.connection_state import ConnectionState
 # from signalrcore.hub_connection_builder import HubConnectionBuilder
 # from signalrcore.hub.base_hub_connection import BaseHubConnection
-
-
+from  functools import partial
 import aiohttp
 import asyncio
 from typing import List, Dict, Any
@@ -22,6 +21,7 @@ class TzktEventsConnector(EventsConnector):
         url: str,
     ):
         self._url = url
+        self._handlers = {}
         self._client: Optional[BaseHubConnection] = None
         self._operation_subscriptions = 0
 
@@ -50,7 +50,7 @@ class TzktEventsConnector(EventsConnector):
         ...
 
     async def subscribe_to_operations(self, address: str, types: List[str]) -> None:
-        self._get_client().on('operations', self.on_transaction)
+        self._get_client().on('operations', self.on_operation_message)
 
         while self._get_client().state != ConnectionState.connected:
             await asyncio.sleep(0.1)
@@ -81,7 +81,7 @@ class TzktEventsConnector(EventsConnector):
             logging.info(operations)
 
             for operation in operations:
-                await self.on_transaction([operation])
+                await self.on_operation_message([operation])
 
             if len(operations) < 100:
                 break
@@ -91,14 +91,26 @@ class TzktEventsConnector(EventsConnector):
             print(offset)
             await asyncio.sleep(1)
 
-    async def on_transaction(self, message: List[Dict[str, Any]]):
+    async def on_operation_message(self, message: List[Dict[str, Any]]):
         print(message)
         for item in message:
             if item['type'] != 1:
                 continue
-            for transaction in item['data']:
+            for operation in item['data']:
 
-                print(transaction)
+                if operation['type'] != 'transaction':
+                    continue
+                if 'parameter' not in operation:
+                    continue
+
+                key = operation['parameter']['entrypoint']
+                print('key', key)
+                if key in self._handlers:
+                    handler = self._handlers[key]
+                    await handler(operation['parameter']['value'])
+
+    async def set_handler(self, entrypoint: str, callback):
+        self._handlers[entrypoint] = callback
 
     async def start(self):
         await self._get_client().start()

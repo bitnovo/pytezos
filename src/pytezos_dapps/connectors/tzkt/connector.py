@@ -3,11 +3,11 @@
 from pytezos_dapps.connectors.abstract import EventsConnector
 from tortoise.exceptions import OperationalError
 
-from signalrcore_async.hub_connection_builder import HubConnectionBuilder
-from signalrcore_async.hub.base_hub_connection import BaseHubConnection
-from signalrcore_async.hub.connection_state import ConnectionState
-# from signalrcore.hub_connection_builder import HubConnectionBuilder
-# from signalrcore.hub.base_hub_connection import BaseHubConnection
+# from signalrcore_async.hub_connection_builder import HubConnectionBuilder
+# from signalrcore_async.hub.base_hub_connection import BaseHubConnection
+from signalrcore.transport.websockets.connection import ConnectionState
+from signalrcore.hub_connection_builder import HubConnectionBuilder
+from signalrcore.hub.base_hub_connection import BaseHubConnection
 from  functools import partial
 import aiohttp
 import asyncio
@@ -52,7 +52,7 @@ class TzktEventsConnector(EventsConnector):
     async def subscribe_to_operations(self, address: str, types: List[str]) -> None:
         self._get_client().on('operations', self.on_operation_message)
 
-        while self._get_client().state != ConnectionState.connected:
+        while self._get_client().transport.state != ConnectionState.connected:
             await asyncio.sleep(0.1)
 
         await self._get_client().send(

@@ -6,11 +6,16 @@ logger = logging.getLogger(__name__)
 
 async def on_mint(params: Dict[str, Any]):
     print('on_mint', params)
-    address, _ = await Address.get_or_create(address=params['address'])
+    address = await Address.filter(address=params['address']).get_or_none()
+    if address is None:
+        address = Address(address=params['address'])
+        await address.save()
+
     for _ in params['amount']:
         token = Token(
             token_id=params['token_id'],
             token_info=params['token_info'][''],
+            holder=address,
         )
         await token.save()
 

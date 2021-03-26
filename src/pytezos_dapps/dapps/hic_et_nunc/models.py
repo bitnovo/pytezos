@@ -1,5 +1,6 @@
 from tortoise import Model, fields
 
+
 class Address(Model):
     address = fields.CharField(58, pk=True)
 

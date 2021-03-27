@@ -1,19 +1,16 @@
 
 
-from pytezos_dapps.connectors.abstract import EventsConnector
-from tortoise.exceptions import OperationalError
-
-# from signalrcore_async.hub_connection_builder import HubConnectionBuilder
-# from signalrcore_async.hub.base_hub_connection import BaseHubConnection
-from signalrcore.transport.websockets.connection import ConnectionState
-from signalrcore.hub_connection_builder import HubConnectionBuilder
-from signalrcore.hub.base_hub_connection import BaseHubConnection
-from  functools import partial
-import aiohttp
 import asyncio
-from typing import List, Dict, Any
-from contextlib import suppress
 import logging
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+from signalrcore.hub.base_hub_connection import BaseHubConnection
+from signalrcore.hub_connection_builder import HubConnectionBuilder
+from signalrcore.transport.websockets.connection import ConnectionState
+
+from pytezos_dapps.connectors.abstract import EventsConnector
+
 
 class TzktEventsConnector(EventsConnector):
     def __init__(
@@ -29,7 +26,7 @@ class TzktEventsConnector(EventsConnector):
 
     def _get_client(self) -> BaseHubConnection:
         if self._client is None:
-            self._client = hub_connection = (
+            self._client = (
                 HubConnectionBuilder()
                 .with_url(self._url + '/v1/events')
                 .configure_logging(logging.DEBUG)

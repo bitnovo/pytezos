@@ -1,8 +1,10 @@
-from attr import dataclass
 import os
-from typing import Dict, Type, Optional
+from typing import Dict, Optional, Type
+
+from attr import dataclass
 from cattr import Converter
 from ruamel.yaml import YAML
+
 
 @dataclass(kw_only=True)
 class DatabaseConfig:

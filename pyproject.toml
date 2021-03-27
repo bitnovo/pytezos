@@ -15,7 +15,7 @@ classifiers = [
 ]
 packages = [
     { include = "pytezos", from = "src" },
-    { include = "pytezos_indexer", from = "src" },
+    { include = "pytezos_dapps", from = "src" },
 ]
 
 [tool.poetry.dependencies]

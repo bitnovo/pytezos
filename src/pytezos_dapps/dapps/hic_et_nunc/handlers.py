@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
 from pytezos_dapps.dapps.hic_et_nunc.models import Address, Token
 
 logger = logging.getLogger(__name__)

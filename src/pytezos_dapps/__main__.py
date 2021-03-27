@@ -1,14 +1,14 @@
 import asyncio
-
-from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
-from pytezos_dapps.dapps.hic_et_nunc.handlers import on_mint, on_transfer, on_curate, on_collect
-from pytezos_dapps.config import PytezosDappConfig
-from time import sleep
-import logging
-from tortoise import Tortoise
-from contextlib import suppress
-import asyncio
 import importlib
+import logging
+from contextlib import suppress
+from time import sleep
+
+from tortoise import Tortoise
+
+from pytezos_dapps.config import PytezosDappConfig
+from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
+from pytezos_dapps.dapps.hic_et_nunc.handlers import on_collect, on_curate, on_mint, on_transfer
 
 logging.basicConfig()
 logging.getLogger().setLevel(0)

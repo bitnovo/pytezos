@@ -3,6 +3,9 @@ database:
   connection_string: sqlite:///home/droserasprout/git/pytezos/db.sqlite3
 tzkt:
   url: https://api.tzkt.io
-contract: KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9
+contracts:
+  HEN_minter: KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9
 handlers:
-  mint: on_mint
+  - contract: HEN_minter
+    entrypoint: mint
+    handler: on_mint

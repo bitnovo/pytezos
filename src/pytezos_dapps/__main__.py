@@ -22,15 +22,19 @@ async def run():
     with suppress(Exception):
         await Tortoise.generate_schemas()
 
-    connector = TzktEventsConnector(config.tzkt.url, config.contract)
+    connector = TzktEventsConnector(config.tzkt.url)
 
     handlers = importlib.import_module(config.module + '.handlers')
-    for event, handler_name in config.handlers.items():
-        handler = getattr(handlers, handler_name)
-        await connector.set_handler(config.contract, event, handler)
+    for handler_config in config.handlers:
+        address = config.contracts[handler_config.contract]
+        handler = getattr(handlers, handler_config.handler)
+        await connector.set_handler(address, handler_config.entrypoint, handler)
 
     try:
-        await connector.start()
+        await asyncio.gather(
+            connector.start(),
+            connector.fetch_operations(),
+        )
     finally:
         await Tortoise.close_connections()
 

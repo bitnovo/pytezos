@@ -14,11 +14,7 @@ from pytezos_dapps.models import OperationModel
 
 
 class TzktEventsConnector(EventsConnector):
-    def __init__(
-        self,
-        url: str,
-        contract: str,
-    ):
+    def __init__(self, url: str):
         self._url = url
         self._logger = logging.getLogger(__name__)
         self._subscriptions: Dict[str, List[str]] = {}
@@ -75,34 +71,34 @@ class TzktEventsConnector(EventsConnector):
         )
         self._operation_subscriptions += 1
 
-    async def fetch_operations(self, address: str, types: List[str]) -> None:
+    async def fetch_operations(self) -> None:
+        for address in self._subscriptions:
+            offset = 0
+            while True:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url=f'{self._url}/v1/accounts/{address}/operations',
+                        params=dict(
+                            type='transaction',
+                            offset=offset,
+                        ),
+                    ) as resp:
+                        operations = await resp.json()
 
-        offset = 0
-        while True:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url=f'{self._url}/v1/accounts/{address}/operations',
-                    params=dict(
-                        type='transaction',
-                        offset=offset,
-                    ),
-                ) as resp:
-                    operations = await resp.json()
+                logging.info(operations)
 
-            logging.info(operations)
+                await self.on_operation_message(
+                    address=address,
+                    message=[{'type': 1, 'data': operations}],
+                )
 
-            await self.on_operation_message(
-                address=address,
-                message={'type': 1, 'data': operations},
-            )
+                if len(operations) < 100:
+                    break
 
-            if len(operations) < 100:
-                break
-
-            offset += 100
-            print(operations[0])
-            print(offset)
-            await asyncio.sleep(1)
+                offset += 100
+                print(operations[0])
+                print(offset)
+                await asyncio.sleep(1)
 
     async def on_operation_message(self, message: List[Dict[str, Any]], address: str) -> None:
         print(message)
@@ -121,7 +117,7 @@ class TzktEventsConnector(EventsConnector):
                 key = operation.entrypoint
                 self._logger.debug('%s, %s', address, operation.entrypoint)
                 if key in self._handlers.get(address, {}):
-                    handler = self._handlers[key]
+                    handler = self._handlers[address][key]
                     await handler(operation)
 
     async def set_handler(self, address: str, entrypoint: str, callback) -> None:

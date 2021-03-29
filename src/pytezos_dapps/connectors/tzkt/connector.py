@@ -5,11 +5,13 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import aiohttp
+from cattrs_extras.converter import Converter
 from signalrcore.hub.base_hub_connection import BaseHubConnection
 from signalrcore.hub_connection_builder import HubConnectionBuilder
 from signalrcore.transport.websockets.connection import ConnectionState
 
 from pytezos_dapps.connectors.abstract import EventsConnector
+from pytezos_dapps.models import OperationModel
 
 
 class TzktEventsConnector(EventsConnector):
@@ -99,21 +101,39 @@ class TzktEventsConnector(EventsConnector):
         for item in message:
             if item['type'] != 1:
                 continue
-            for operation in item['data']:
+            for operation_json in item['data']:
 
-                if operation['type'] != 'transaction':
+                operation = self.convert_operation(operation_json)
+
+                if operation.type != 'transaction':
                     continue
-                if 'parameter' not in operation:
+                if operation.parameters_json is None:
                     continue
 
-                key = operation['parameter']['entrypoint']
+                key = operation.entrypoint
                 print('key', key)
                 if key in self._handlers:
                     handler = self._handlers[key]
-                    await handler(operation['parameter']['value'])
+                    await handler(operation)
 
     async def set_handler(self, entrypoint: str, callback):
         self._handlers[entrypoint] = callback
 
-    async def start(self):
-        await self._get_client().start()
+    @classmethod
+    def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationModel:
+        operation_json['initiator_address'] = operation_json.get('initiator', {}).get('address')
+        operation_json['sender_address'] = operation_json['sender']['address']
+        operation_json['sender_alias'] = operation_json['sender'].get('alias')
+        operation_json['gas_limit'] = operation_json['gasLimit']
+        operation_json['gas_used'] = operation_json['gasUsed']
+        operation_json['storage_limit'] = operation_json['storageLimit']
+        operation_json['storage_used'] = operation_json['storageUsed']
+        operation_json['baker_fee'] = operation_json['bakerFee']
+        operation_json['storage_fee'] = operation_json['storageFee']
+        operation_json['allocation_fee'] = operation_json['allocationFee']
+        operation_json['target_alias'] = operation_json['target'].get('alias')
+        operation_json['target_address'] = operation_json['target']['address']
+        operation_json['entrypoint'] = operation_json.get('parameter', {}).get('entrypoint')
+        operation_json['parameters_json'] = operation_json.get('parameter', {}).get('value')
+        operation_json['has_internals'] = operation_json['hasInternals']
+        return Converter().structure(operation_json, OperationModel)

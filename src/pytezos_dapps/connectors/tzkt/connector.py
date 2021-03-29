@@ -73,15 +73,17 @@ class TzktEventsConnector(EventsConnector):
 
     async def fetch_operations(self) -> None:
         for address in self._subscriptions:
+            limit = 1000
             offset = 0
             while True:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
-                        url=f'{self._url}/v1/accounts/{address}/operations',
-                        params=dict(
-                            type='transaction',
-                            offset=offset,
-                        ),
+                        url=f'{self._url}/v1/operations/transactions',
+                        params={
+                            "anyof.sender.target.initiator": address,
+                            "offset": offset,
+                            "limit": limit,
+                        },
                     ) as resp:
                         operations = await resp.json()
 
@@ -92,10 +94,10 @@ class TzktEventsConnector(EventsConnector):
                     message=[{'type': 1, 'data': operations}],
                 )
 
-                if len(operations) < 100:
+                if len(operations) < limit:
                     break
 
-                offset += 100
+                offset += limit
                 print(operations[0])
                 print(offset)
                 await asyncio.sleep(1)

@@ -1,0 +1,16 @@
+database:
+  driver: postgres
+  host: db
+  port: 5432
+  user: pytezos_dapps
+  database: pytezos_dapps
+  password: changeme
+tzkt:
+  url: https://api.tzkt.io
+contracts:
+  HEN_minter: KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9
+handlers:
+  - contract: HEN_minter
+    entrypoint: mint
+    handler: on_mint
+debug: True

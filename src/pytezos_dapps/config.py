@@ -23,13 +23,12 @@ class DatabaseConfig:
     user: str
     password: str = ''
     database: str
-    charset: str = 'utf8'
 
     @property
     def connection_string(self):
         if self.driver == 'sqlite':
             return f'{self.driver}://{self.path}'
-        return f'{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}?charset={self.charset}'
+        return f'{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
 
 @dataclass(kw_only=True)
 class TzktConfig:

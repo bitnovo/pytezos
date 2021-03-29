@@ -1,0 +1,24 @@
+version: "3.8"
+services:
+  pytezos_dapps:
+    build:
+      context: ../..
+      dockerfile: src/pytezos_dapps/Dockerfile
+    command: ["run", "-d", "hic_et_nunc", "-c", "/config.yml"]
+    volumes:
+      - ./dapps/hic_et_nunc/config-docker.yml:/config.yml
+    depends_on:
+      - db
+
+  db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: pytezos_dapps
+      POSTGRES_DB: pytezos_dapps
+      POSTGRES_PASSWORD: changeme
+    volumes:
+      - db:/var/lib/postgres/data
+
+volumes:
+  db:

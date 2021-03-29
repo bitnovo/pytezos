@@ -2,6 +2,8 @@
 .PHONY: docs
 .DEFAULT_GOAL: all
 
+DEV ?= 1
+
 all: install lint test cover
 
 debug:
@@ -9,7 +11,7 @@ debug:
 
 install:
 	git submodule update --init
-	poetry install
+	poetry install `if [ "${DEV}" = "0" ]; then echo "--no-dev"; fi`
 
 notebook:
 	poetry run jupyter notebook

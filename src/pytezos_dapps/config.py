@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
 
 from attr import dataclass
 from cattrs_extras.converter import Converter
@@ -7,9 +7,29 @@ from ruamel.yaml import YAML
 
 
 @dataclass(kw_only=True)
-class DatabaseConfig:
-    connection_string: str
+class SqliteDatabaseConfig:
+    path: str = ':memory:'
 
+    @property
+    def connection_string(self):
+        return f'sqlite://{self.path}'
+
+
+@dataclass(kw_only=True)
+class DatabaseConfig:
+    driver: str
+    host: str
+    port: int
+    user: str
+    password: str = ''
+    database: str
+    charset: str = 'utf8'
+
+    @property
+    def connection_string(self):
+        if self.driver == 'sqlite':
+            return f'{self.driver}://{self.path}'
+        return f'{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}?charset={self.charset}'
 
 @dataclass(kw_only=True)
 class TzktConfig:
@@ -26,10 +46,11 @@ class HandlerConfig:
 @dataclass(kw_only=True)
 class PytezosDappConfig:
     tzkt: TzktConfig
-    database: DatabaseConfig
+    database: Union[SqliteDatabaseConfig, DatabaseConfig] = SqliteDatabaseConfig()
     contracts: Dict[str, str]
     handlers: List[HandlerConfig]
     module: str
+    debug: bool = False
 
     @classmethod
     def load(

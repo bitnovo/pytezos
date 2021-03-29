@@ -3,9 +3,16 @@ from typing import Any, Optional
 
 from attr import dataclass
 
+from tortoise import Model, fields
+
+
+class Transaction(Model):
+    id = fields.IntField(pk=True)
+    block = fields.CharField(58)
+
 
 @dataclass(kw_only=True)
-class OperationModel:
+class OperationData:
     type: str
     id: int
     level: int
@@ -32,3 +39,9 @@ class OperationModel:
     status: str
     has_internals: bool
     parameters: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class HandlerContext:
+    data: OperationData
+    transaction: Transaction

@@ -10,7 +10,7 @@ from signalrcore.hub_connection_builder import HubConnectionBuilder
 from signalrcore.transport.websockets.connection import ConnectionState
 
 from pytezos_dapps.connectors.abstract import EventsConnector
-from pytezos_dapps.models import OperationModel
+from pytezos_dapps.models import HandlerContext, OperationData, Transaction
 
 
 class TzktEventsConnector(EventsConnector):
@@ -21,6 +21,17 @@ class TzktEventsConnector(EventsConnector):
         self._handlers: Dict[str, Dict[str, Callable]] = {}
         self._client: Optional[BaseHubConnection] = None
         self._operation_subscriptions = 0
+        self._checkpoint = None
+
+    @property
+    def checkpoint(self):
+        return self._checkpoint
+
+    @checkpoint.setter
+    def checkpoint(self, value: str):
+        if self._client:
+            raise Exception('Checkpoint must be set before starting websocket client')
+        self._checkpoint = value
 
     def _get_client(self) -> BaseHubConnection:
         if self._client is None:
@@ -98,8 +109,6 @@ class TzktEventsConnector(EventsConnector):
                     break
 
                 offset += limit
-                print(operations[0])
-                print(offset)
                 await asyncio.sleep(1)
 
     async def on_operation_message(self, message: List[Dict[str, Any]], address: str) -> None:
@@ -113,14 +122,19 @@ class TzktEventsConnector(EventsConnector):
 
                 if operation.type != 'transaction':
                     continue
-                if operation.parameters_json is None:
-                    continue
+
+                transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
 
                 key = operation.entrypoint
                 self._logger.debug('%s, %s', address, operation.entrypoint)
                 if key in self._handlers.get(address, {}):
+
+                    context = HandlerContext(
+                        data=operation,
+                        transaction=transaction,
+                    )
                     handler = self._handlers[address][key]
-                    await handler(operation)
+                    await handler(context)
 
     async def set_handler(self, address: str, entrypoint: str, callback) -> None:
         if address not in self._subscriptions:
@@ -132,7 +146,7 @@ class TzktEventsConnector(EventsConnector):
         self._handlers[address][entrypoint] = callback
 
     @classmethod
-    def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationModel:
+    def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationData:
         operation_json['initiator_address'] = operation_json.get('initiator', {}).get('address')
         operation_json['sender_address'] = operation_json['sender']['address']
         operation_json['sender_alias'] = operation_json['sender'].get('alias')
@@ -148,4 +162,4 @@ class TzktEventsConnector(EventsConnector):
         operation_json['entrypoint'] = operation_json.get('parameter', {}).get('entrypoint')
         operation_json['parameters_json'] = operation_json.get('parameter', {}).get('value')
         operation_json['has_internals'] = operation_json['hasInternals']
-        return Converter().structure(operation_json, OperationModel)
+        return Converter().structure(operation_json, OperationData)

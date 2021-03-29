@@ -1,6 +1,6 @@
 module: pytezos_dapps.dapps.hic_et_nunc
 database:
-  connection_string: sqlite:///home/droserasprout/git/pytezos/db.sqlite3
+  path: /home/droserasprout/git/pytezos/db.sqlite3
 tzkt:
   url: https://api.tzkt.io
 contracts:
@@ -9,3 +9,4 @@ handlers:
   - contract: HEN_minter
     entrypoint: mint
     handler: on_mint
+debug: True

@@ -5,6 +5,7 @@ from pytezos_dapps.models import OperationModel
 
 logger = logging.getLogger(__name__)
 
+
 async def on_mint(operation: OperationModel):
     print('on_mint', operation.parameters_json)
     address = await Address.filter(address=operation.parameters_json['address']).get_or_none()
@@ -20,11 +21,14 @@ async def on_mint(operation: OperationModel):
         )
         await token.save()
 
+
 async def on_transfer(operation: OperationModel):
     print('STUB', 'on_transfer', operation.parameters_json)
 
+
 async def on_curate(operation: OperationModel):
     print('STUB', 'on_curate', operation.parameters_json)
+
 
 async def on_collect(operation: OperationModel):
     print('STUB', 'on_collect', operation.parameters_json)

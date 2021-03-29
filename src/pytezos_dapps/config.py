@@ -10,6 +10,7 @@ from ruamel.yaml import YAML
 class DatabaseConfig:
     connection_string: str
 
+
 @dataclass(kw_only=True)
 class TzktConfig:
     url: str

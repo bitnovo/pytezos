@@ -1,5 +1,3 @@
-
-
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
@@ -37,7 +35,7 @@ class TzktEventsConnector(EventsConnector):
                         "type": "raw",
                         "keep_alive_interval": 10,
                         "reconnect_interval": 5,
-                        "max_attempts": 5
+                        "max_attempts": 5,
                     }
                 )
             ).build()
@@ -61,11 +59,13 @@ class TzktEventsConnector(EventsConnector):
             await asyncio.sleep(0.1)
 
         await self._get_client().send(
-                'SubscribeToOperations',
-            [{
-                'address': address,
-                'types': ','.join(types),
-            }]
+            'SubscribeToOperations',
+            [
+                {
+                    'address': address,
+                    'types': ','.join(types),
+                }
+            ],
         )
         self._operation_subscriptions += 1
 
@@ -79,7 +79,7 @@ class TzktEventsConnector(EventsConnector):
                     params=dict(
                         type='transaction',
                         offset=offset,
-                    )
+                    ),
                 ) as resp:
                     operations = await resp.json()
 

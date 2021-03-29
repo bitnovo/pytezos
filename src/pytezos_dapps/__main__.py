@@ -18,10 +18,7 @@ async def run():
 
     config = PytezosDappConfig.load('git/pytezos/src/pytezos_dapps/config.yml')
 
-    await Tortoise.init(
-        db_url=config.database.connection_string,
-        modules={'models': [config.module + '.models']}
-    )
+    await Tortoise.init(db_url=config.database.connection_string, modules={'models': [config.module + '.models']})
     with suppress(Exception):
         await Tortoise.generate_schemas()
 

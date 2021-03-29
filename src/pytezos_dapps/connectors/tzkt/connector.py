@@ -1,6 +1,7 @@
 import asyncio
+from functools import partial
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 from cattrs_extras.converter import Converter
@@ -19,8 +20,9 @@ class TzktEventsConnector(EventsConnector):
         contract: str,
     ):
         self._url = url
-        self._contract = contract
-        self._handlers = {}
+        self._logger = logging.getLogger(__name__)
+        self._subscriptions: Dict[str, List[str]] = {}
+        self._handlers: Dict[str, Dict[str, Callable]] = {}
         self._client: Optional[BaseHubConnection] = None
         self._operation_subscriptions = 0
 
@@ -50,10 +52,14 @@ class TzktEventsConnector(EventsConnector):
         ...
 
     async def on_connect(self):
-        await self.subscribe_to_operations(self._contract, ['transaction'])
+        for address, subscriptions in self._subscriptions.items():
+            await self.subscribe_to_operations(address, subscriptions)
 
     async def subscribe_to_operations(self, address: str, types: List[str]) -> None:
-        self._get_client().on('operations', self.on_operation_message)
+        self._get_client().on(
+            'operations',
+            partial(self.on_operation_message, address=address),
+        )
 
         while self._get_client().transport.state != ConnectionState.connected:
             await asyncio.sleep(0.1)
@@ -85,8 +91,10 @@ class TzktEventsConnector(EventsConnector):
 
             logging.info(operations)
 
-            for operation in operations:
-                await self.on_operation_message([operation])
+            await self.on_operation_message(
+                address=address,
+                message={'type': 1, 'data': operations},
+            )
 
             if len(operations) < 100:
                 break
@@ -96,7 +104,7 @@ class TzktEventsConnector(EventsConnector):
             print(offset)
             await asyncio.sleep(1)
 
-    async def on_operation_message(self, message: List[Dict[str, Any]]):
+    async def on_operation_message(self, message: List[Dict[str, Any]], address: str) -> None:
         print(message)
         for item in message:
             if item['type'] != 1:
@@ -111,13 +119,19 @@ class TzktEventsConnector(EventsConnector):
                     continue
 
                 key = operation.entrypoint
-                print('key', key)
-                if key in self._handlers:
+                self._logger.debug('%s, %s', address, operation.entrypoint)
+                if key in self._handlers.get(address, {}):
                     handler = self._handlers[key]
                     await handler(operation)
 
-    async def set_handler(self, entrypoint: str, callback):
-        self._handlers[entrypoint] = callback
+    async def set_handler(self, address: str, entrypoint: str, callback) -> None:
+        if address not in self._subscriptions:
+            self._subscriptions[address] = ['transaction']
+        if address not in self._handlers:
+            self._handlers[address] = {}
+        if entrypoint in self._handlers[address]:
+            self._logger.warning('Overriding existing handler for entrypoint `%s`', entrypoint)
+        self._handlers[address][entrypoint] = callback
 
     @classmethod
     def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationModel:

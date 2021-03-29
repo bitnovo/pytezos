@@ -27,7 +27,7 @@ async def run():
     handlers = importlib.import_module(config.module + '.handlers')
     for event, handler_name in config.handlers.items():
         handler = getattr(handlers, handler_name)
-        await connector.set_handler(event, handler)
+        await connector.set_handler(config.contract, event, handler)
 
     try:
         await connector.start()

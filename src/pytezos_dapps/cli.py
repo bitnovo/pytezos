@@ -1,17 +1,18 @@
 import logging
 import click
 from pytezos_dapps import __version__
+import sys
+import os
 import asyncio
 import importlib
 from contextlib import suppress
 from functools import  wraps
 from tortoise import Tortoise
-
+from os.path import join, dirname
 from pytezos_dapps.config import PytezosDappConfig
 from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
 
 _logger = logging.getLogger(__name__)
-
 
 import asyncio
 from functools import update_wrapper
@@ -33,20 +34,22 @@ async def cli(*_args, **_kwargs):
 
 
 @cli.command(help='Run pytezos dapp')
-@click.option('--config', '-c', type=str, help='Path to the dapp YAML config')
+@click.option('--dapp', '-d', type=str, help='Dapp name')
+@click.option('--config', '-c', type=str, help='Path to the dapp YAML config', default='config.yml')
 @click.pass_context
 @click_async
-async def run(_ctx, config: str) -> None:
+async def run(_ctx, dapp: str, config: str) -> None:
     logging.basicConfig()
 
-    config = PytezosDappConfig.load(config)
+    handlers = importlib.import_module(f'pytezos_dapps.dapps.{dapp}.handlers')
+
+    config = PytezosDappConfig.load(join(os.getcwd(), config))
 
     if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
     connector = TzktEventsConnector(config.tzkt.url)
 
-    handlers = importlib.import_module(config.module + '.handlers')
     for handler_config in config.handlers:
         address = config.contracts[handler_config.contract]
         handler = getattr(handlers, handler_config.handler)
@@ -56,7 +59,7 @@ async def run(_ctx, config: str) -> None:
         await Tortoise.init(
             db_url=config.database.connection_string,
             modules={
-                'models': [config.module + '.models'],
+                'models': [f'pytezos_dapps.dapps.{dapp}.models'],
                 'int_models': ['pytezos_dapps.models']
             },
         )

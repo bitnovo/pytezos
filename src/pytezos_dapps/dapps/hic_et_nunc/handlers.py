@@ -1,7 +1,7 @@
 from gettext import translation
 import logging
 
-from pytezos_dapps.dapps.hic_et_nunc.models import Address, Token
+from .models import Address, Token
 from pytezos_dapps.models import HandlerContext, OperationData
 
 logger = logging.getLogger(__name__)

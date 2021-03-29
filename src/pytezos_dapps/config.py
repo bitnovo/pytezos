@@ -49,7 +49,6 @@ class PytezosDappConfig:
     database: Union[SqliteDatabaseConfig, DatabaseConfig] = SqliteDatabaseConfig()
     contracts: Dict[str, str]
     handlers: List[HandlerConfig]
-    module: str
     debug: bool = False
 
     @classmethod

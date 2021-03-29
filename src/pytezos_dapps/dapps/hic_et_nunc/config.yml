@@ -1,4 +1,3 @@
-module: pytezos_dapps.dapps.hic_et_nunc
 database:
   path: /home/droserasprout/git/pytezos/db.sqlite3
 tzkt:

@@ -4,9 +4,7 @@ services:
     build:
       context: ../..
       dockerfile: src/pytezos_dapps/Dockerfile
-    command: ["run", "-d", "hic_et_nunc", "-c", "/config.yml"]
-    volumes:
-      - ./dapps/hic_et_nunc/config-docker.yml:/config.yml
+    command: ["run", "-d", "hic_et_nunc", "-c", "config-docker.yml"]
     depends_on:
       - db
 

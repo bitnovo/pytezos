@@ -1,7 +1,7 @@
 import os
 from symbol import parameters
 from typing import Any, Callable, Dict, List, Optional, Type, Union
-
+import logging.config
 from attr import dataclass
 from cattrs_extras.converter import Converter
 from ruamel.yaml import YAML
@@ -116,3 +116,19 @@ class PytezosDappConfig:
             raw_config = YAML(typ='base').load(file.read())
         config = converter.structure(raw_config, cls_override or cls)
         return config
+
+@dataclass(kw_only=True)
+class LoggingConfig:
+    config: Dict[str, Any]
+
+    @classmethod
+    def load(cls, filename: str,) -> None:
+
+        current_workdir = os.path.join(os.getcwd())
+        filename = os.path.join(current_workdir, filename)
+
+        with open(filename) as file:
+            return cls(config=YAML().load(file.read()))
+
+    def apply(self):
+        logging.config.dictConfig(self.config)

@@ -9,7 +9,7 @@ from contextlib import suppress
 from functools import  wraps
 from tortoise import Tortoise
 from os.path import join, dirname
-from pytezos_dapps.config import PytezosDappConfig
+from pytezos_dapps.config import PytezosDappConfig, LoggingConfig
 from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
 
 _logger = logging.getLogger(__name__)
@@ -36,21 +36,30 @@ async def cli(*_args, **_kwargs):
 @cli.command(help='Run pytezos dapp')
 @click.option('--dapp', '-d', type=str, help='Dapp name')
 @click.option('--config', '-c', type=str, help='Path to the dapp YAML config', default='config.yml')
+@click.option('--logging-config', '-l', type=str, help='Path to the logging YAML config', default='logging.yml')
 @click.pass_context
 @click_async
-async def run(_ctx, dapp: str, config: str) -> None:
-    logging.basicConfig()
+async def run(_ctx, dapp: str, config: str, logging_config: str) -> None:
+    try:
+        path = join(os.getcwd(), logging_config)
+        LoggingConfig.load(path).apply()
+    except Exception:
+        path = join(dirname(__file__), 'configs', logging_config)
+        LoggingConfig.load(path).apply()
 
     _logger.info('Loading config')
-    config = PytezosDappConfig.load(join(os.getcwd(), config))
-    if config.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
+    try:
+        path = join(os.getcwd(), config)
+        _config = PytezosDappConfig.load(path)
+    except Exception:
+        path = join(dirname(__file__), 'configs', config)
+        _config = PytezosDappConfig.load(path)
 
     _logger.info('Setting up handlers and parameters')
     handlers = importlib.import_module(f'pytezos_dapps.dapps.{dapp}.handlers')
     parameters = importlib.import_module(f'pytezos_dapps.dapps.{dapp}.parameters')
 
-    for handler_config in config.handlers:
+    for handler_config in _config.handlers:
         _logger.info('Registering handler `%s`', handler_config.handler)
         handler = getattr(handlers, handler_config.handler)
         handler_config.handler_callable = handler
@@ -61,12 +70,12 @@ async def run(_ctx, dapp: str, config: str) -> None:
             handler_operation.parameters_type = parameters_type
 
     _logger.info('Creating connector')
-    connector = TzktEventsConnector(config.tzkt.url, config.handlers)
+    connector = TzktEventsConnector(_config.tzkt.url, _config.handlers)
 
     try:
         _logger.info('Initializing database')
         await Tortoise.init(
-            db_url=config.database.connection_string,
+            db_url=_config.database.connection_string,
             modules={
                 'models': [f'pytezos_dapps.dapps.{dapp}.models'],
                 'int_models': ['pytezos_dapps.models']

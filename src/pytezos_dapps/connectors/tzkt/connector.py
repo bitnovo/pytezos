@@ -43,7 +43,6 @@ class TzktEventsConnector(EventsConnector):
             self._client = (
                 HubConnectionBuilder()
                 .with_url(self._url + '/v1/events')
-                .configure_logging(logging.DEBUG)
                 .with_automatic_reconnect(
                     {
                         "type": "raw",
@@ -61,9 +60,10 @@ class TzktEventsConnector(EventsConnector):
         for handler in self._handlers:
             await self.add_subscription(handler.contract)
 
-        asyncio.create_task(self._cache.run())
-        
-        await self._get_client().start()
+        await asyncio.gather(
+            self._cache.run(),
+            self._get_client().start(),
+        )
 
     async def stop(self):
         ...

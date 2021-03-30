@@ -40,7 +40,7 @@ class OperationCache(AsyncIOEventEmitter):
         return True
 
     async def check(self, hash, counter) -> None:
-        self._logger.info('Checking operation group (%s, %s)', hash, counter)
+        self._logger.debug('Checking operation group (%s, %s)', hash, counter)
         key = (hash, counter)
         for handler in self._handlers:
             matched_operations = []
@@ -51,7 +51,7 @@ class OperationCache(AsyncIOEventEmitter):
                         matched_operations.append(operation)
 
             if len(matched_operations) == len(handler.operations):
-                self._logger.info('Handler `%s` matched!', handler.handler)
+                self._logger.info('Handler `%s` matched! %s', handler.handler, key)
                 self.emit('match', handler, matched_operations)
                 del self._operations[key]
 

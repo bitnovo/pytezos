@@ -16,4 +16,3 @@ handlers:
         destination: HEN_objkts
         entrypoint: mint
         parameters: Mint
-debug: True

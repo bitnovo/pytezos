@@ -1,9 +1,12 @@
 from datetime import datetime
-from typing import Any, Optional
+from symbol import parameters
+from typing import Any, Generic, Optional, TypeVar
 
 from attr import dataclass
 
 from tortoise import Model, fields
+
+ParametersT = TypeVar('ParametersT')
 
 
 class Transaction(Model):
@@ -42,6 +45,7 @@ class OperationData:
 
 
 @dataclass(kw_only=True)
-class HandlerContext:
+class HandlerContext(Generic[ParametersT]):
     data: OperationData
     transaction: Transaction
+    parameters: ParametersT

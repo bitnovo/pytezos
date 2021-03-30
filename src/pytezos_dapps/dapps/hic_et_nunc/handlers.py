@@ -1,36 +1,25 @@
 from gettext import translation
 import logging
 
+from .parameters import Mint, MintObjkt
+
 from .models import Address, Token
-from pytezos_dapps.models import HandlerContext, OperationData
+from pytezos_dapps.models import HandlerContext
 
 logger = logging.getLogger(__name__)
 
 
-async def on_mint(ctx: HandlerContext):
-    print('on_mint', ctx.data.parameters_json)
-    address = await Address.filter(address=ctx.data.parameters_json['address']).get_or_none()
-    if address is None:
-        address = Address(address=ctx.data.parameters_json['address'])
-        await address.save()
+async def on_mint(
+    mint_objct: HandlerContext[MintObjkt],
+    mint: HandlerContext[Mint]
+):
+    address, _ = await Address.get_or_create(address=mint.parameters.address)
 
-    for _ in ctx.data.parameters_json['amount']:
+    for _ in range(mint.parameters.amount):
         token = Token(
-            token_id=ctx.data.parameters_json['token_id'],
-            token_info=ctx.data.parameters_json['token_info'][''],
+            token_id=mint.parameters.token_id,
+            token_info=mint.parameters.token_info[''],
             holder=address,
-            transaction=ctx.transaction,
+            transaction=mint.transaction,
         )
         await token.save()
-
-
-async def on_transfer(ctx: HandlerContext):
-    print('STUB', 'on_transfer', ctx.data.parameters_json)
-
-
-async def on_curate(ctx: HandlerContext):
-    print('STUB', 'on_curate', ctx.data.parameters_json)
-
-
-async def on_collect(ctx: HandlerContext):
-    print('STUB', 'on_collect', ctx.data.parameters_json)

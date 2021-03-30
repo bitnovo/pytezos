@@ -1,27 +1,32 @@
 import asyncio
 from functools import partial
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 
 import aiohttp
 from cattrs_extras.converter import Converter
+from pytezos_dapps.config import HandlerConfig
+from pytezos_dapps.connectors.tzkt.cache import OperationCache
 from signalrcore.hub.base_hub_connection import BaseHubConnection
 from signalrcore.hub_connection_builder import HubConnectionBuilder
 from signalrcore.transport.websockets.connection import ConnectionState
 
+from pytezos_dapps.connectors.tzkt.enums import TzktMessageType
 from pytezos_dapps.connectors.abstract import EventsConnector
 from pytezos_dapps.models import HandlerContext, OperationData, Transaction
 
 
 class TzktEventsConnector(EventsConnector):
-    def __init__(self, url: str):
+    def __init__(self, url: str, handlers: List[HandlerConfig]):
+        super().__init__()
         self._url = url
+        self._handlers = handlers
         self._logger = logging.getLogger(__name__)
         self._subscriptions: Dict[str, List[str]] = {}
-        self._handlers: Dict[str, Dict[str, Callable]] = {}
         self._client: Optional[BaseHubConnection] = None
-        self._operation_subscriptions = 0
         self._checkpoint = None
+        self._cache = OperationCache(handlers)
+        self._cache.on('match', self.on_match)
 
     @property
     def checkpoint(self):
@@ -53,6 +58,11 @@ class TzktEventsConnector(EventsConnector):
         return self._client
 
     async def start(self):
+        for handler in self._handlers:
+            await self.add_subscription(handler.contract)
+
+        asyncio.create_task(self._cache.run())
+        
         await self._get_client().start()
 
     async def stop(self):
@@ -80,7 +90,6 @@ class TzktEventsConnector(EventsConnector):
                 }
             ],
         )
-        self._operation_subscriptions += 1
 
     async def fetch_operations(self) -> None:
         for address in self._subscriptions:
@@ -102,7 +111,12 @@ class TzktEventsConnector(EventsConnector):
 
                 await self.on_operation_message(
                     address=address,
-                    message=[{'type': 1, 'data': operations}],
+                    message=[
+                        {
+                            'type': TzktMessageType.DATA.value,
+                            'data': operations,
+                        },
+                    ],
                 )
 
                 if len(operations) < limit:
@@ -111,10 +125,11 @@ class TzktEventsConnector(EventsConnector):
                 offset += limit
                 await asyncio.sleep(1)
 
+
     async def on_operation_message(self, message: List[Dict[str, Any]], address: str) -> None:
-        print(message)
         for item in message:
-            if item['type'] != 1:
+            message_type = TzktMessageType(item['type'])
+            if message_type != TzktMessageType.DATA:
                 continue
             for operation_json in item['data']:
 
@@ -123,27 +138,32 @@ class TzktEventsConnector(EventsConnector):
                 if operation.type != 'transaction':
                     continue
 
-                transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
+                await self._cache.add(operation)
 
-                key = operation.entrypoint
-                self._logger.debug('%s, %s', address, operation.entrypoint)
-                if key in self._handlers.get(address, {}):
-
-                    context = HandlerContext(
-                        data=operation,
-                        transaction=transaction,
-                    )
-                    handler = self._handlers[address][key]
-                    await handler(context)
-
-    async def set_handler(self, address: str, entrypoint: str, callback) -> None:
+    async def add_subscription(self, address: str, types: Optional[List[str]] = None) -> None:
+        if types is None:
+            types = ['transaction']
         if address not in self._subscriptions:
-            self._subscriptions[address] = ['transaction']
-        if address not in self._handlers:
-            self._handlers[address] = {}
-        if entrypoint in self._handlers[address]:
-            self._logger.warning('Overriding existing handler for entrypoint `%s`', entrypoint)
-        self._handlers[address][entrypoint] = callback
+            self._subscriptions[address] = types
+
+    async def on_match(self, handler_config: HandlerConfig, operations: List[OperationData]):
+        handler = handler_config.handler_callable
+        args = []
+        for handler_operation, operation in zip(handler_config.operations, operations):
+            transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
+
+            parameters_type = handler_operation.parameters_type
+            parameters = Converter().structure(operation.parameters_json, parameters_type)
+
+            context = HandlerContext[parameters_type](
+                data=operation,
+                transaction=transaction,
+                parameters=parameters,
+            )
+            args.append(context)
+
+        await handler(*args)
+
 
     @classmethod
     def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationData:

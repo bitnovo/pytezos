@@ -41,21 +41,30 @@ async def cli(*_args, **_kwargs):
 async def run(_ctx, dapp: str, config: str) -> None:
     logging.basicConfig()
 
-    handlers = importlib.import_module(f'pytezos_dapps.dapps.{dapp}.handlers')
-
+    _logger.info('Loading config')
     config = PytezosDappConfig.load(join(os.getcwd(), config))
-
     if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    connector = TzktEventsConnector(config.tzkt.url)
+    _logger.info('Setting up handlers and parameters')
+    handlers = importlib.import_module(f'pytezos_dapps.dapps.{dapp}.handlers')
+    parameters = importlib.import_module(f'pytezos_dapps.dapps.{dapp}.parameters')
 
     for handler_config in config.handlers:
-        address = config.contracts[handler_config.contract]
+        _logger.info('Registering handler `%s`', handler_config.handler)
         handler = getattr(handlers, handler_config.handler)
-        await connector.set_handler(address, handler_config.entrypoint, handler)
+        handler_config.handler_callable = handler
+
+        for handler_operation in handler_config.operations:
+            _logger.info('Registering parameters type `%s`', handler_operation.parameters)
+            parameters_type = getattr(parameters, handler_operation.parameters)
+            handler_operation.parameters_type = parameters_type
+
+    _logger.info('Creating connector')
+    connector = TzktEventsConnector(config.tzkt.url, config.handlers)
 
     try:
+        _logger.info('Initializing database')
         await Tortoise.init(
             db_url=config.database.connection_string,
             modules={
@@ -65,6 +74,7 @@ async def run(_ctx, dapp: str, config: str) -> None:
         )
         await Tortoise.generate_schemas()
 
+        _logger.info('Starting connector')
         await asyncio.gather(
             connector.start(),
             connector.fetch_operations(),

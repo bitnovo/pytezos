@@ -49,6 +49,7 @@ cattrs-extras = "^0.1.1"
 websockets = "^8.1"
 signalrcore = {git = "https://github.com/droserasprout/signalrcore", rev = "async"}
 asyncpg = "^0.22.0"
+pyee = "^8.1.0"
 
 [tool.poetry.dev-dependencies]
 parameterized = "^0.7.0"

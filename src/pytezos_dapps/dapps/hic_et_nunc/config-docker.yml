@@ -9,8 +9,16 @@ tzkt:
   url: https://api.tzkt.io
 contracts:
   HEN_minter: KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9
+  HEN_objkts: KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton
 handlers:
-  - contract: HEN_minter
-    entrypoint: mint
-    handler: on_mint
+  - handler: on_mint
+    contract: HEN_minter
+    operations:
+      - destination: HEN_minter
+        entrypoint: mint_OBJKT
+        parameters: MintObjkt
+      - sender: HEN_minter
+        destination: HEN_objkts
+        entrypoint: mint
+        parameters: Mint
 debug: True

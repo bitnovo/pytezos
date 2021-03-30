@@ -1,5 +1,5 @@
-from abc import ABC
+from pyee import AsyncIOEventEmitter
 
 
-class EventsConnector(ABC):
+class EventsConnector(AsyncIOEventEmitter):
     ...

@@ -9,6 +9,12 @@ from tortoise import Model, fields
 ParametersT = TypeVar('ParametersT')
 
 
+class State(Model):
+    dapp = fields.CharField(128)
+    hash = fields.CharField(128)
+    level = fields.IntField(default=0)
+
+
 class Transaction(Model):
     id = fields.IntField(pk=True)
     block = fields.CharField(58)

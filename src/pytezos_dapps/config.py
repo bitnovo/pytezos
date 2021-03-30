@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 from symbol import parameters
 from typing import Any, Callable, Dict, List, Optional, Type, Union
@@ -116,6 +118,9 @@ class PytezosDappConfig:
             raw_config = YAML(typ='base').load(file.read())
         config = converter.structure(raw_config, cls_override or cls)
         return config
+
+    def hash(self):
+        return hashlib.sha256(json.dumps(Converter().unstructure(self)).encode()).hexdigest()[-8:]
 
 @dataclass(kw_only=True)
 class LoggingConfig:

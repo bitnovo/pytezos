@@ -7,6 +7,7 @@ import asyncio
 import importlib
 from contextlib import suppress
 from functools import  wraps
+from pytezos_dapps.models import State
 from tortoise import Tortoise
 from os.path import join, dirname
 from pytezos_dapps.config import PytezosDappConfig, LoggingConfig
@@ -69,9 +70,6 @@ async def run(_ctx, dapp: str, config: str, logging_config: str) -> None:
             parameters_type = getattr(parameters, handler_operation.parameters)
             handler_operation.parameters_type = parameters_type
 
-    _logger.info('Creating connector')
-    connector = TzktEventsConnector(_config.tzkt.url, _config.handlers)
-
     try:
         _logger.info('Initializing database')
         await Tortoise.init(
@@ -83,11 +81,17 @@ async def run(_ctx, dapp: str, config: str, logging_config: str) -> None:
         )
         await Tortoise.generate_schemas()
 
+        _hash = _config.hash()
+        _logger.info('Fetching indexer state for config %s', _hash)
+
+        state, _ = await State.get_or_create(dapp=dapp, hash=_hash)
+
+        _logger.info('Creating connector')
+        connector = TzktEventsConnector(_config.tzkt.url, _config.handlers, state)
+
         _logger.info('Starting connector')
-        await asyncio.gather(
-            connector.start(),
-            connector.fetch_operations(),
-        )
+        await connector.start()
+
     finally:
         await Tortoise.close_connections()
 

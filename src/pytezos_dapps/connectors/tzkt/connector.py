@@ -13,33 +13,26 @@ from signalrcore.transport.websockets.connection import ConnectionState
 
 from pytezos_dapps.connectors.tzkt.enums import TzktMessageType
 from pytezos_dapps.connectors.abstract import EventsConnector
-from pytezos_dapps.models import HandlerContext, OperationData, Transaction
+from pytezos_dapps.models import HandlerContext, OperationData, State, Transaction
 
 
 class TzktEventsConnector(EventsConnector):
-    def __init__(self, url: str, handlers: List[HandlerConfig]):
+    def __init__(self, url: str, handlers: List[HandlerConfig], state: State):
         super().__init__()
         self._url = url
         self._handlers = handlers
+        self._state = state
+        self._synchronized = asyncio.Event()
+        self._callback_lock = asyncio.Lock()
         self._logger = logging.getLogger(__name__)
         self._subscriptions: Dict[str, List[str]] = {}
         self._client: Optional[BaseHubConnection] = None
-        self._checkpoint = None
-        self._cache = OperationCache(handlers)
+        self._cache = OperationCache(handlers, self._state.level)
         self._cache.on('match', self.on_match)
-
-    @property
-    def checkpoint(self):
-        return self._checkpoint
-
-    @checkpoint.setter
-    def checkpoint(self, value: str):
-        if self._client:
-            raise Exception('Checkpoint must be set before starting websocket client')
-        self._checkpoint = value
 
     def _get_client(self) -> BaseHubConnection:
         if self._client is None:
+            self._logger.info('Creating websocket client')
             self._client = (
                 HubConnectionBuilder()
                 .with_url(self._url + '/v1/events')
@@ -57,19 +50,23 @@ class TzktEventsConnector(EventsConnector):
         return self._client
 
     async def start(self):
+        self._logger.info('Starting connector')
         for handler in self._handlers:
             await self.add_subscription(handler.contract)
 
+        self._logger.info('Starting websocket client')
         await self._get_client().start()
 
     async def stop(self):
         ...
 
     async def on_connect(self):
+        self._logger.info('Connected to server')
         for address, subscriptions in self._subscriptions.items():
             await self.subscribe_to_operations(address, subscriptions)
 
     async def subscribe_to_operations(self, address: str, types: List[str]) -> None:
+        self._logger.info('Subscribing to %s, %s', address, types)
         self._get_client().on(
             'operations',
             partial(self.on_operation_message, address=address),
@@ -88,11 +85,14 @@ class TzktEventsConnector(EventsConnector):
             ],
         )
 
-    async def fetch_operations(self) -> None:
+    async def fetch_operations(self, last_level: int) -> None:
+        self._logger.info('Fetching operations prior to level %s', last_level)
+        level = self._state.level or 0
         for address in self._subscriptions:
-            limit = 1000
+            limit = 10000
             offset = 0
             while True:
+                self._logger.info('Fetching levels %s-%s with offset %s', level , last_level, offset)
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
                         url=f'{self._url}/v1/operations/transactions',
@@ -100,11 +100,14 @@ class TzktEventsConnector(EventsConnector):
                             "anyof.sender.target.initiator": address,
                             "offset": offset,
                             "limit": limit,
+                            "level.gt": level,
+                            "level.le": last_level,
                         },
                     ) as resp:
                         operations = await resp.json()
 
-                logging.info(operations)
+                self._logger.info('%s operations fetched', len(operations))
+                self._logger.debug(operations)
 
                 await self.on_operation_message(
                     address=address,
@@ -114,33 +117,50 @@ class TzktEventsConnector(EventsConnector):
                             'data': operations,
                         },
                     ],
+                    sync=True,
                 )
 
                 if len(operations) < limit:
                     break
 
                 offset += limit
-                await asyncio.sleep(1)
+                sleep_time = 1
+                self._logger.info('Sleeping %s seconds before fetching next batch', sleep_time)
+                await asyncio.sleep(sleep_time)
+
+        self._logger.info('Synchronized to level %s', last_level)
+        self._state.level = last_level
+        await self._state.save()
+        self._synchronized.set()
 
 
-    async def on_operation_message(self, message: List[Dict[str, Any]], address: str) -> None:
+    async def on_operation_message(self, message: List[Dict[str, Any]], address: str, sync = False) -> None:
+        self._logger.info('Got operation message on %s', address)
         for item in message:
             message_type = TzktMessageType(item['type'])
-            if message_type != TzktMessageType.DATA:
-                continue
 
-            self._cache.flush()
+            if message_type == TzktMessageType.STATE:
+                level = item['state']
+                self._logger.info('Current level is %s', level)
+                await self.fetch_operations(level)
+            elif message_type == TzktMessageType.DATA:
+                if not sync:
+                    self._logger.info('Waiting until synchronization is complete')
+                    await self._synchronized.wait()
+                    self._logger.info('Synchronization is complete, processing websocket message')
 
-            for operation_json in item['data']:
-
-                operation = self.convert_operation(operation_json)
-
-                if operation.type != 'transaction':
-                    continue
-
-                await self._cache.add(operation)
-
-            await self._cache.check()
+                self._logger.info('Acquiring callback lock')
+                async with self._callback_lock:
+                    self._cache.flush()
+                    for operation_json in item['data']:
+                        operation = self.convert_operation(operation_json)
+                        if operation.type != 'transaction':
+                            continue
+                        await self._cache.add(operation)
+                    last_level = await self._cache.check()
+                    if not sync:
+                        self._state.level = last_level
+                        await self._state.save()
 
     async def add_subscription(self, address: str, types: Optional[List[str]] = None) -> None:
         if types is None:

@@ -13,9 +13,10 @@ from copy import copy
 class OperationCache(AsyncIOEventEmitter):
     key = namedtuple('key', ('hash', 'counter'))
 
-    def __init__(self, handlers: List[HandlerConfig]) -> None:
+    def __init__(self, handlers: List[HandlerConfig], level: int) -> None:
         super().__init__()
         self._handlers = handlers
+        self._level = level
         self._logger = logging.getLogger(__name__)
         self._stopped = False
         self._operations: Dict[self.key, List[OperationData]] = {}
@@ -27,6 +28,7 @@ class OperationCache(AsyncIOEventEmitter):
     async def add(self, operation: OperationData):
         self._logger.debug('Adding operation %s to cache (%s, %s)', operation.id, operation.hash, operation.counter)
         key = (operation.hash, operation.counter)
+        self._level = max(operation.level, self._level)
         if key not in self._operations:
             self._operations[key] = []
         self._operations[key].append(operation)
@@ -43,9 +45,9 @@ class OperationCache(AsyncIOEventEmitter):
             return False
         return True
 
-    async def check(self) -> None:
+    async def check(self) -> int:
         keys = self._operations.keys() | self._previous_operations.keys()
-        self._logger.debug('Checking %s operation groups', len(keys))
+        self._logger.info('Matching %s operation groups', len(keys))
         for key in keys:
             for handler in self._handlers:
                 matched_operations = []
@@ -65,8 +67,9 @@ class OperationCache(AsyncIOEventEmitter):
                         del self._previous_operations[key]
 
         keys_left = self._operations.keys() | self._previous_operations.keys()
-        self._logger.debug('%s operation groups unmatched', len(keys_left))
-
+        self._logger.info('%s operation groups unmatched', len(keys_left))
+        self._logger.info('Current level: %s', self._level)
+        return self._level
 
 
     def flush(self):

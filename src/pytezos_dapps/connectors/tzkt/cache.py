@@ -19,9 +19,13 @@ class OperationCache(AsyncIOEventEmitter):
         self._logger = logging.getLogger(__name__)
         self._stopped = False
         self._operations: Dict[self.key, List[OperationData]] = {}
+        self._previous_operations: Dict[self.key, List[OperationData]] = {}
+
+    def __getitem__(self, key):
+        return self._operations.get(key, []) + self._previous_operations.get(key, [])
 
     async def add(self, operation: OperationData):
-        self._logger.info('Adding operation %s to cache (%s, %s)', operation.id, operation.hash, operation.counter)
+        self._logger.debug('Adding operation %s to cache (%s, %s)', operation.id, operation.hash, operation.counter)
         key = (operation.hash, operation.counter)
         if key not in self._operations:
             self._operations[key] = []
@@ -39,28 +43,38 @@ class OperationCache(AsyncIOEventEmitter):
             return False
         return True
 
-    async def check(self, hash, counter) -> None:
-        self._logger.debug('Checking operation group (%s, %s)', hash, counter)
-        key = (hash, counter)
-        for handler in self._handlers:
-            matched_operations = []
-            for handler_operation in handler.operations:
-                for operation in self._operations[key]:
-                    handler_matched = self.match_handler(handler_operation, operation)
-                    if handler_matched:
-                        matched_operations.append(operation)
+    async def check(self) -> None:
+        keys = self._operations.keys() | self._previous_operations.keys()
+        self._logger.debug('Checking %s operation groups', len(keys))
+        for key in keys:
+            for handler in self._handlers:
+                matched_operations = []
+                for handler_operation in handler.operations:
+                    operations = self[key]
+                    for operation in operations:
+                        handler_matched = self.match_handler(handler_operation, operation)
+                        if handler_matched:
+                            matched_operations.append(operation)
 
-            if len(matched_operations) == len(handler.operations):
-                self._logger.info('Handler `%s` matched! %s', handler.handler, key)
-                self.emit('match', handler, matched_operations)
-                del self._operations[key]
+                if len(matched_operations) == len(handler.operations):
+                    self._logger.info('Handler `%s` matched! %s', handler.handler, key)
+                    self.emit('match', handler, matched_operations)
+                    if key in self._operations:
+                        del self._operations[key]
+                    if key in self._previous_operations:
+                        del self._previous_operations[key]
 
-    async def run(self):
-        while not self._stopped:
-            self._logger.info('Checking %s operation groups in cache', len(self._operations))
-            for hash, counter in copy(self._operations):
-                await self.check(hash, counter)
-            await asyncio.sleep(1)
+        keys_left = self._operations.keys() | self._previous_operations.keys()
+        self._logger.debug('%s operation groups unmatched', len(keys_left))
+
+
+
+    def flush(self):
+        keys = self._previous_operations.keys()
+        self._logger.info('Dropping %s operation groups from previous batch', len(keys))
+
+        self._previous_operations = self._operations
+        self._operations = {}
 
     async def stop(self):
         self._stopped = True

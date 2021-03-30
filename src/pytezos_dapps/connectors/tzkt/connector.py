@@ -60,10 +60,7 @@ class TzktEventsConnector(EventsConnector):
         for handler in self._handlers:
             await self.add_subscription(handler.contract)
 
-        await asyncio.gather(
-            self._cache.run(),
-            self._get_client().start(),
-        )
+        await self._get_client().start()
 
     async def stop(self):
         ...
@@ -131,6 +128,9 @@ class TzktEventsConnector(EventsConnector):
             message_type = TzktMessageType(item['type'])
             if message_type != TzktMessageType.DATA:
                 continue
+
+            self._cache.flush()
+
             for operation_json in item['data']:
 
                 operation = self.convert_operation(operation_json)
@@ -139,6 +139,8 @@ class TzktEventsConnector(EventsConnector):
                     continue
 
                 await self._cache.add(operation)
+
+            await self._cache.check()
 
     async def add_subscription(self, address: str, types: Optional[List[str]] = None) -> None:
         if types is None:

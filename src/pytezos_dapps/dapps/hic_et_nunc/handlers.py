@@ -1,18 +1,15 @@
-from gettext import translation
 import logging
+from gettext import translation
 
-from .parameters import Mint, MintObjkt
+from pytezos_dapps.models import HandlerContext
 
 from .models import Address, Token
-from pytezos_dapps.models import HandlerContext
+from .parameters import Mint, MintObjkt
 
 logger = logging.getLogger(__name__)
 
 
-async def on_mint(
-    mint_objct: HandlerContext[MintObjkt],
-    mint: HandlerContext[Mint]
-):
+async def on_mint(mint_objct: HandlerContext[MintObjkt], mint: HandlerContext[Mint]):
     address, _ = await Address.get_or_create(address=mint.parameters.address)
 
     for _ in range(mint.parameters.amount):

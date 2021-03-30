@@ -1,33 +1,31 @@
-
-
-import asyncio
-from collections import namedtuple
 import logging
+from collections import namedtuple
 from typing import Dict, List
-from pyee import AsyncIOEventEmitter
-from pytezos_dapps.config import HandlerConfig, HandlerOperationConfig
 
+from pyee import AsyncIOEventEmitter  # type: ignore
+
+from pytezos_dapps.config import HandlerConfig, HandlerOperationConfig
 from pytezos_dapps.models import OperationData
-from copy import copy
+
+OperationGroup = namedtuple('OperationGroup', ('hash', 'counter'))
+
 
 class OperationCache(AsyncIOEventEmitter):
-    key = namedtuple('key', ('hash', 'counter'))
-
     def __init__(self, handlers: List[HandlerConfig], level: int) -> None:
         super().__init__()
         self._handlers = handlers
         self._level = level
         self._logger = logging.getLogger(__name__)
         self._stopped = False
-        self._operations: Dict[self.key, List[OperationData]] = {}
-        self._previous_operations: Dict[self.key, List[OperationData]] = {}
+        self._operations: Dict[OperationGroup, List[OperationData]] = {}
+        self._previous_operations: Dict[OperationGroup, List[OperationData]] = {}
 
     def __getitem__(self, key):
         return self._operations.get(key, []) + self._previous_operations.get(key, [])
 
     async def add(self, operation: OperationData):
         self._logger.debug('Adding operation %s to cache (%s, %s)', operation.id, operation.hash, operation.counter)
-        key = (operation.hash, operation.counter)
+        key = OperationGroup(operation.hash, operation.counter)
         self._level = max(operation.level, self._level)
         if key not in self._operations:
             self._operations[key] = []
@@ -70,7 +68,6 @@ class OperationCache(AsyncIOEventEmitter):
         self._logger.info('%s operation groups unmatched', len(keys_left))
         self._logger.info('Current level: %s', self._level)
         return self._level
-
 
     def flush(self):
         keys = self._previous_operations.keys()

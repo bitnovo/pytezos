@@ -1,22 +1,20 @@
-import logging
-import click
-from pytezos_dapps import __version__
-import sys
-import os
 import asyncio
 import importlib
-from contextlib import suppress
-from functools import  wraps
-from pytezos_dapps.models import State
+import logging
+import os
+from functools import wraps
+from os.path import dirname, join
+
+import click
 from tortoise import Tortoise
-from os.path import join, dirname
-from pytezos_dapps.config import PytezosDappConfig, LoggingConfig
+
+from pytezos_dapps import __version__
+from pytezos_dapps.config import LoggingConfig, PytezosDappConfig
 from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
+from pytezos_dapps.models import State
 
 _logger = logging.getLogger(__name__)
 
-import asyncio
-from functools import update_wrapper
 
 def click_async(fn):
     @wraps(fn)
@@ -76,7 +74,7 @@ async def run(_ctx, dapp: str, config: str, logging_config: str) -> None:
             db_url=_config.database.connection_string,
             modules={
                 'models': [f'pytezos_dapps.dapps.{dapp}.models'],
-                'int_models': ['pytezos_dapps.models']
+                'int_models': ['pytezos_dapps.models'],
             },
         )
         await Tortoise.generate_schemas()
@@ -95,8 +93,10 @@ async def run(_ctx, dapp: str, config: str, logging_config: str) -> None:
     finally:
         await Tortoise.close_connections()
 
+
 async def init():
     ...
+
 
 async def purge():
     ...

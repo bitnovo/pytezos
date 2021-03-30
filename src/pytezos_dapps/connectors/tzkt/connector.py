@@ -1,18 +1,18 @@
 import asyncio
-from functools import partial
 import logging
-from typing import Any, Callable, Dict, List, Optional, Type
+from functools import partial
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 from cattrs_extras.converter import Converter
-from pytezos_dapps.config import HandlerConfig
-from pytezos_dapps.connectors.tzkt.cache import OperationCache
-from signalrcore.hub.base_hub_connection import BaseHubConnection
-from signalrcore.hub_connection_builder import HubConnectionBuilder
-from signalrcore.transport.websockets.connection import ConnectionState
+from signalrcore.hub.base_hub_connection import BaseHubConnection  # type: ignore
+from signalrcore.hub_connection_builder import HubConnectionBuilder  # type: ignore
+from signalrcore.transport.websockets.connection import ConnectionState  # type: ignore
 
-from pytezos_dapps.connectors.tzkt.enums import TzktMessageType
+from pytezos_dapps.config import HandlerConfig
 from pytezos_dapps.connectors.abstract import EventsConnector
+from pytezos_dapps.connectors.tzkt.cache import OperationCache
+from pytezos_dapps.connectors.tzkt.enums import TzktMessageType
 from pytezos_dapps.models import HandlerContext, OperationData, State, Transaction
 
 
@@ -92,7 +92,7 @@ class TzktEventsConnector(EventsConnector):
             limit = 10000
             offset = 0
             while True:
-                self._logger.info('Fetching levels %s-%s with offset %s', level , last_level, offset)
+                self._logger.info('Fetching levels %s-%s with offset %s', level, last_level, offset)
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
                         url=f'{self._url}/v1/operations/transactions',
@@ -129,12 +129,16 @@ class TzktEventsConnector(EventsConnector):
                 await asyncio.sleep(sleep_time)
 
         self._logger.info('Synchronized to level %s', last_level)
-        self._state.level = last_level
+        self._state.level = last_level  # type: ignore
         await self._state.save()
         self._synchronized.set()
 
-
-    async def on_operation_message(self, message: List[Dict[str, Any]], address: str, sync = False) -> None:
+    async def on_operation_message(
+        self,
+        message: List[Dict[str, Any]],
+        address: str,
+        sync=False,
+    ) -> None:
         self._logger.info('Got operation message on %s', address)
         for item in message:
             message_type = TzktMessageType(item['type'])
@@ -159,7 +163,7 @@ class TzktEventsConnector(EventsConnector):
                         await self._cache.add(operation)
                     last_level = await self._cache.check()
                     if not sync:
-                        self._state.level = last_level
+                        self._state.level = last_level  # type: ignore
                         await self._state.save()
 
     async def add_subscription(self, address: str, types: Optional[List[str]] = None) -> None:
@@ -177,7 +181,7 @@ class TzktEventsConnector(EventsConnector):
             parameters_type = handler_operation.parameters_type
             parameters = Converter().structure(operation.parameters_json, parameters_type)
 
-            context = HandlerContext[parameters_type](
+            context = HandlerContext(
                 data=operation,
                 transaction=transaction,
                 parameters=parameters,
@@ -185,7 +189,6 @@ class TzktEventsConnector(EventsConnector):
             args.append(context)
 
         await handler(*args)
-
 
     @classmethod
     def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationData:

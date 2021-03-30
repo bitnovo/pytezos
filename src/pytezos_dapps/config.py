@@ -1,9 +1,10 @@
 import hashlib
 import json
+import logging.config
 import os
 from symbol import parameters
 from typing import Any, Callable, Dict, List, Optional, Type, Union
-import logging.config
+
 from attr import dataclass
 from cattrs_extras.converter import Converter
 from ruamel.yaml import YAML
@@ -32,6 +33,7 @@ class DatabaseConfig:
         if self.driver == 'sqlite':
             return f'{self.driver}://{self.path}'
         return f'{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
+
 
 @dataclass(kw_only=True)
 class TzktConfig:
@@ -112,7 +114,7 @@ class PytezosDappConfig:
 
         current_workdir = os.path.join(os.getcwd())
         filename = os.path.join(current_workdir, filename)
-        converter = Converter() or converter_override
+        converter = converter_override or Converter()
 
         with open(filename) as file:
             raw_config = YAML(typ='base').load(file.read())
@@ -122,12 +124,16 @@ class PytezosDappConfig:
     def hash(self):
         return hashlib.sha256(json.dumps(Converter().unstructure(self)).encode()).hexdigest()[-8:]
 
+
 @dataclass(kw_only=True)
 class LoggingConfig:
     config: Dict[str, Any]
 
     @classmethod
-    def load(cls, filename: str,) -> None:
+    def load(
+        cls,
+        filename: str,
+    ) -> 'LoggingConfig':
 
         current_workdir = os.path.join(os.getcwd())
         filename = os.path.join(current_workdir, filename)

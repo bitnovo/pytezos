@@ -3,7 +3,6 @@ from symbol import parameters
 from typing import Any, Generic, Optional, TypeVar
 
 from attr import dataclass
-
 from tortoise import Model, fields
 
 ParametersT = TypeVar('ParametersT')

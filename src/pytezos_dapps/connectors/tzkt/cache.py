@@ -1,16 +1,15 @@
 import logging
 from collections import namedtuple
-from typing import Dict, List
-
+from typing import Callable, Dict, List
 from pyee import AsyncIOEventEmitter  # type: ignore
 
 from pytezos_dapps.config import HandlerConfig, HandlerOperationConfig
-from pytezos_dapps.models import OperationData
+from pytezos_dapps.models import HandlerContext, OperationData
 
 OperationGroup = namedtuple('OperationGroup', ('hash', 'counter'))
 
 
-class OperationCache(AsyncIOEventEmitter):
+class OperationCache:
     def __init__(self, handlers: List[HandlerConfig], level: int) -> None:
         super().__init__()
         self._handlers = handlers
@@ -19,9 +18,6 @@ class OperationCache(AsyncIOEventEmitter):
         self._stopped = False
         self._operations: Dict[OperationGroup, List[OperationData]] = {}
         self._previous_operations: Dict[OperationGroup, List[OperationData]] = {}
-
-    def __getitem__(self, key):
-        return self._operations.get(key, []) + self._previous_operations.get(key, [])
 
     async def add(self, operation: OperationData):
         self._logger.debug('Adding operation %s to cache (%s, %s)', operation.id, operation.hash, operation.counter)
@@ -43,14 +39,17 @@ class OperationCache(AsyncIOEventEmitter):
             return False
         return True
 
-    async def check(self) -> int:
-        keys = self._operations.keys() | self._previous_operations.keys()
+    async def process(
+        self,
+        callback: Callable[[HandlerConfig, List[OperationData]], None],
+    ) -> int:
+        keys = list(self._operations.keys())
         self._logger.info('Matching %s operation groups', len(keys))
         for key in keys:
             for handler in self._handlers:
                 matched_operations = []
                 for handler_operation in handler.operations:
-                    operations = self[key]
+                    operations = self._operations.get(key, [])
                     for operation in operations:
                         handler_matched = self.match_handler(handler_operation, operation)
                         if handler_matched:
@@ -58,23 +57,15 @@ class OperationCache(AsyncIOEventEmitter):
 
                 if len(matched_operations) == len(handler.operations):
                     self._logger.info('Handler `%s` matched! %s', handler.handler, key)
-                    self.emit('match', handler, matched_operations)
+                    await callback(handler, matched_operations)
                     if key in self._operations:
                         del self._operations[key]
-                    if key in self._previous_operations:
-                        del self._previous_operations[key]
 
-        keys_left = self._operations.keys() | self._previous_operations.keys()
+        keys_left = self._operations.keys()
         self._logger.info('%s operation groups unmatched', len(keys_left))
         self._logger.info('Current level: %s', self._level)
-        return self._level
-
-    def flush(self):
-        keys = self._previous_operations.keys()
-        self._logger.info('Dropping %s operation groups from previous batch', len(keys))
-
-        self._previous_operations = self._operations
         self._operations = {}
+        return self._level
 
     async def stop(self):
         self._stopped = True

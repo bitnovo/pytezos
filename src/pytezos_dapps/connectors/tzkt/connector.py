@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from tortoise.transactions import in_transaction
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +16,9 @@ from pytezos_dapps.connectors.tzkt.cache import OperationCache
 from pytezos_dapps.connectors.tzkt.enums import TzktMessageType
 from pytezos_dapps.models import HandlerContext, OperationData, State, Transaction
 
+TZKT_HTTP_REQUEST_LIMIT = 10000
+TZKT_HTTP_REQUEST_SLEEP = 1
+
 
 class TzktEventsConnector(EventsConnector):
     def __init__(self, url: str, handlers: List[HandlerConfig], state: State):
@@ -28,7 +32,6 @@ class TzktEventsConnector(EventsConnector):
         self._subscriptions: Dict[str, List[str]] = {}
         self._client: Optional[BaseHubConnection] = None
         self._cache = OperationCache(handlers, self._state.level)
-        self._cache.on('match', self.on_match)
 
     def _get_client(self) -> BaseHubConnection:
         if self._client is None:
@@ -85,52 +88,68 @@ class TzktEventsConnector(EventsConnector):
             ],
         )
 
+    async def _fetch_operations(self, address: str, offset: int, first_level: int, last_level: int) -> List[Dict[str, Any]]:
+        self._logger.info('Fetching levels %s-%s with offset %s', first_level, last_level, offset)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url=f'{self._url}/v1/operations/transactions',
+                params={
+                    "anyof.sender.target.initiator": address,
+                    "offset": offset,
+                    "limit": TZKT_HTTP_REQUEST_LIMIT,
+                    "level.gt": first_level,
+                    "level.le": last_level,
+                },
+            ) as resp:
+                operations = await resp.json()
+        self._logger.info('%s operations fetched', len(operations))
+        self._logger.debug(operations)
+        return operations
+
     async def fetch_operations(self, last_level: int) -> None:
+
+        async def _process_operations(address, operations):
+            self._logger.info('Processing %s operations of level %s', len(operations), operations[0]['level'])
+            await self.on_operation_message(
+                address=address,
+                message=[
+                    {
+                        'type': TzktMessageType.DATA.value,
+                        'data': operations,
+                    },
+                ],
+                sync=True,
+            )
+
         self._logger.info('Fetching operations prior to level %s', last_level)
         level = self._state.level or 0
         for address in self._subscriptions:
-            limit = 10000
+            operations = []
             offset = 0
+
             while True:
-                self._logger.info('Fetching levels %s-%s with offset %s', level, last_level, offset)
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        url=f'{self._url}/v1/operations/transactions',
-                        params={
-                            "anyof.sender.target.initiator": address,
-                            "offset": offset,
-                            "limit": limit,
-                            "level.gt": level,
-                            "level.le": last_level,
-                        },
-                    ) as resp:
-                        operations = await resp.json()
+                fetched_operations = await self._fetch_operations(address, offset, level, last_level)
+                operations += fetched_operations
 
-                self._logger.info('%s operations fetched', len(operations))
-                self._logger.debug(operations)
+                while True:
+                    for i in range(len(operations) - 1):
+                        if operations[i]['level'] != operations[i + 1]['level']:
+                            await _process_operations(address, operations[:i + 1])
+                            operations = operations[i + 1:]
+                            break
+                    else:
+                        break
 
-                await self.on_operation_message(
-                    address=address,
-                    message=[
-                        {
-                            'type': TzktMessageType.DATA.value,
-                            'data': operations,
-                        },
-                    ],
-                    sync=True,
-                )
-
-                if len(operations) < limit:
+                if len(operations) < TZKT_HTTP_REQUEST_LIMIT:
                     break
 
-                offset += limit
-                sleep_time = 1
-                self._logger.info('Sleeping %s seconds before fetching next batch', sleep_time)
-                await asyncio.sleep(sleep_time)
+                offset += TZKT_HTTP_REQUEST_LIMIT
+                self._logger.info('Sleeping %s seconds before fetching next batch', TZKT_HTTP_REQUEST_SLEEP)
+                await asyncio.sleep(TZKT_HTTP_REQUEST_SLEEP)
 
-        self._logger.info('Synchronized to level %s', last_level)
-        self._state.level = last_level  # type: ignore
-        await self._state.save()
+            if operations:
+                await _process_operations(address, operations)
+
         self._synchronized.set()
 
     async def on_operation_message(
@@ -147,24 +166,28 @@ class TzktEventsConnector(EventsConnector):
                 level = item['state']
                 self._logger.info('Current level is %s', level)
                 await self.fetch_operations(level)
+
             elif message_type == TzktMessageType.DATA:
-                if not sync:
+                if not sync and not self._synchronized.is_set():
                     self._logger.info('Waiting until synchronization is complete')
                     await self._synchronized.wait()
                     self._logger.info('Synchronization is complete, processing websocket message')
 
                 self._logger.info('Acquiring callback lock')
                 async with self._callback_lock:
-                    self._cache.flush()
                     for operation_json in item['data']:
                         operation = self.convert_operation(operation_json)
                         if operation.type != 'transaction':
                             continue
                         await self._cache.add(operation)
-                    last_level = await self._cache.check()
-                    if not sync:
+
+                    async with in_transaction():
+                        last_level = await self._cache.process(self.on_match)
                         self._state.level = last_level  # type: ignore
                         await self._state.save()
+
+            else:
+                self._logger.warning('%s is not supported', message_type)
 
     async def add_subscription(self, address: str, types: Optional[List[str]] = None) -> None:
         if types is None:

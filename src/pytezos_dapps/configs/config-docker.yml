@@ -15,11 +15,10 @@ handlers:
   - handler: on_mint
     contract: HEN_minter
     operations:
-      - destination: HEN_minter
+      - contract: HEN_minter
+        destination: HEN_minter
         entrypoint: mint_OBJKT
-        parameters: MintObjkt
-      - sender: HEN_minter
+      - contract: HEN_objkts
+        sender: HEN_minter
         destination: HEN_objkts
         entrypoint: mint
-        parameters: Mint
-debug: True

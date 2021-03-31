@@ -212,7 +212,7 @@ class TzktEventsConnector(EventsConnector):
             transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
 
             parameters_type = handler_operation.parameters_type
-            parameters = Converter().structure(operation.parameters_json, parameters_type)
+            parameters = parameters_type.parse_obj(operation.parameters_json)
 
             context = HandlerContext(
                 data=operation,

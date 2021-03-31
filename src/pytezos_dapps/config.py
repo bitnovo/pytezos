@@ -42,11 +42,11 @@ class TzktConfig:
 
 @dataclass(kw_only=True)
 class HandlerOperationConfig:
+    contract: str
+    entrypoint: str
     source: Optional[str] = None
     destination: Optional[str] = None
     sender: Optional[str] = None
-    entrypoint: str
-    parameters: str
 
     def __attrs_post_init__(self):
         if not any([self.source, self.destination, self.sender]):
@@ -99,6 +99,8 @@ class PytezosDappConfig:
             if handler.contract in self.contracts:
                 handler.contract = self.contracts[handler.contract]
             for operation in handler.operations:
+                if operation.contract in self.contracts:
+                    operation.contract = self.contracts[operation.contract]
                 if operation.source in self.contracts:
                     operation.source = self.contracts[operation.source]
                 if operation.destination in self.contracts:
@@ -129,7 +131,6 @@ class PytezosDappConfig:
     def initialize(self) -> None:
         self._logger.info('Setting up handlers and parameters for dapp `%s`', self.dapp)
         handlers = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.handlers')
-        parameters = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.parameters')
 
         for handler_config in self.handlers:
             self._logger.info('Registering handler `%s`', handler_config.handler)
@@ -137,8 +138,10 @@ class PytezosDappConfig:
             handler_config.handler_callable = handler
 
             for handler_operation in handler_config.operations:
-                self._logger.info('Registering parameters type `%s`', handler_operation.parameters)
-                parameters_type = getattr(parameters, handler_operation.parameters)
+                self._logger.info('Registering parameters type `%s`', handler_operation.entrypoint)
+                parameters_type_name = handler_operation.entrypoint.title().replace('_', '')
+                parameters_module = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.parameters.{handler_operation.contract}.{handler_operation.entrypoint}')
+                parameters_type = getattr(parameters_module, parameters_type_name)
                 handler_operation.parameters_type = parameters_type
 
 

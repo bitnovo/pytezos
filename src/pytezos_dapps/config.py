@@ -193,8 +193,8 @@ class PytezosDappConfig:
             for handler in index_config.handlers:
                 self._logger.info('Registering handler callback`%s`', handler.callback)
                 handler_module = importlib.import_module(f'{self.package}.handlers.{handler.callback}')
-                handler_fn = getattr(handler_module, handler.callback)
-                handler.handler_fn = handler_fn
+                callback_fn = getattr(handler_module, handler.callback)
+                handler.callback_fn = callback_fn
 
                 for pattern in handler.pattern:
                     self._logger.info('Registering parameter type `%s`', pattern.parameter_type)

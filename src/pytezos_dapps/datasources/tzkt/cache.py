@@ -54,7 +54,7 @@ class OperationCache:
                             matched_operations.append(operation)
 
                 if len(matched_operations) == len(handler_config.pattern):
-                    self._logger.info('Handler `%s` matched! %s', handler_config.handler, key)
+                    self._logger.info('Handler `%s` matched! %s', handler_config.callback, key)
                     await callback(handler_config, matched_operations)
                     if key in self._operations:
                         del self._operations[key]

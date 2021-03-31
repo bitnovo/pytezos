@@ -11,12 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 async def on_mint(mint_objct: HandlerContext[MintObjkt], mint: HandlerContext[Mint]):
-    address, _ = await Address.get_or_create(address=mint.parameters.address)
+    address, _ = await Address.get_or_create(address=mint.parameter.address)
 
-    for _ in range(int(mint.parameters.amount)):
+    for _ in range(int(mint.parameter.amount)):
         token = Token(
-            token_id=int(mint.parameters.token_id),
-            token_info=mint.parameters.token_info[''],
+            token_id=int(mint.parameter.token_id),
+            token_info=mint.parameter.token_info[''],
             holder=address,
             transaction=mint.transaction,
         )

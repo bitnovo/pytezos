@@ -210,7 +210,7 @@ class TzktDatasource:
             transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
 
             parameter_type = pattern_config.parameter_type
-            parameter = parameter_type.parse_obj(operation.parameters_json)
+            parameter = parameter_type.parse_obj(operation.parameter_json)
 
             context = HandlerContext(
                 data=operation,

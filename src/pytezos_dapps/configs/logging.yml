@@ -13,9 +13,9 @@
     SignalRCoreClient:
       formatter: brief
     pytezos_dapps.datasources.tzkt.datasource:
-      level: DEBUG
+      level: INFO
     pytezos_dapps.datasources.tzkt.cache:
-      level: DEBUG
+      level: INFO
   root:
     level: INFO
     handlers:

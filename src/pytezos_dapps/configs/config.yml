@@ -22,7 +22,7 @@ indexes:
   operations_mainnet:
     operation:
       datasource: tzkt_mainnet
-      contract: HEN_minter
+      contract: HEN_objkts
       first_block: 1000000
       handlers:
       - callback: on_mint

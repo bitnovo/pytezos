@@ -112,12 +112,12 @@ class PyTezosClient(ContextMixin, ContentMixin):
 
     def using(self,
               shell: Optional[Union[ShellQuery, str]] = None,
-              key: Optional[Union[Key, str]] = None,
+              key: Optional[Union[Key, str, dict]] = None,
               mode: Optional[str] = None):
         """ Change current rpc endpoint and account (private key).
 
         :param shell: one of 'mainnet', '***net', or RPC node uri, or instance of `ShellQuery`
-        :param key: base58 encoded key, path to the faucet file, alias from tezos-client, or instance of `Key`
+        :param key: base58 encoded key, path to the faucet file, faucet file itself, alias from tezos-client, or `Key`
         :param mode: whether to use `readable` or `optimized` encoding for parameters/storage/other
         :returns: A copy of current object with changes applied
         """
@@ -152,4 +152,28 @@ class PyTezosClient(ContextMixin, ContentMixin):
         return BlockHeader.bake_block(
             min_fee=min_fee,
             context=self.context,
+        )
+
+    def sign_message(self, message: str, block: Union[str, int] = 'genesis') -> str:
+        """Sign arbitrary message with guarantee that resulting operation won't be used onchain.
+
+        :param message: Message to sign
+        :param block: Specify block, defaults to genesis
+        :returns: Base58-encoded signature (non-generic)
+        """
+        return self.key.sign(self.failing_noop(message).message(block=block))
+
+    def check_message(self, message: str, public_key: str, signature: str,
+                      block: str = 'genesis') -> None:
+        """Check message signature
+
+        :param message: Signed operation
+        :param public_key: Signer's public key
+        :param signature: Message signature
+        :param block: Specify block, defaults to genesis
+        """
+        pk = Key.from_encoded_key(public_key)
+        pk.verify(
+            signature=signature,
+            message=self.failing_noop(message).message(block=block),
         )

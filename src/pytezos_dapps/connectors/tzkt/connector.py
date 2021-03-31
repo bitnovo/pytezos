@@ -121,8 +121,12 @@ class TzktEventsConnector(EventsConnector):
                 sync=True,
             )
 
-        self._logger.info('Fetching operations prior to level %s', last_level)
         level = self._state.level or 0
+        if level == last_level:
+            self._synchronized.set()
+            return
+
+        self._logger.info('Fetching operations prior to level %s', last_level)
         for address in self._subscriptions:
             operations = []
             offset = 0

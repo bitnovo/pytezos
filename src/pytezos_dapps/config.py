@@ -1,9 +1,10 @@
+from cgitb import handler
 import hashlib
 import importlib
 import json
 import logging.config
 import os
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
 from attr import dataclass
 from cattrs_extras.converter import Converter
@@ -30,83 +31,139 @@ class DatabaseConfig:
 
     @property
     def connection_string(self):
-        if self.driver == 'sqlite':
-            return f'{self.driver}://{self.path}'
         return f'{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
 
 
 @dataclass(kw_only=True)
-class TzktConfig:
+class TzktDatasourceConfig:
     url: str
+    network: str
 
 
 @dataclass(kw_only=True)
-class HandlerOperationConfig:
-    contract: str
+class OperationHandlerPatternConfig:
     entrypoint: str
+    parameter_type: str
+
+    sender: Optional[str] = None
     source: Optional[str] = None
     destination: Optional[str] = None
-    sender: Optional[str] = None
 
     def __attrs_post_init__(self):
-        if not any([self.source, self.destination, self.sender]):
-            raise Exception('You must specify any of source/destination/sender to match handler')
-        self._parameters_type = None
+        self._parameter_type_cls = None
 
     @property
-    def parameters_type(self) -> Type:
-        if self._parameters_type is None:
-            raise Exception('Parameters type is not registered')
-        return self._parameters_type
+    def parameter_type_cls(self) -> Type:
+        if self._parameter_type_cls is None:
+            raise Exception('Parameter type is not registered')
+        return self._parameter_type_cls
 
-    @parameters_type.setter
-    def parameters_type(self, typ: Type) -> None:
-        self._parameters_type = typ
+    @parameter_type_cls.setter
+    def parameters_type_cls(self, typ: Type) -> None:
+        self._parameter_type_cls = typ
 
 
 @dataclass(kw_only=True)
-class HandlerConfig:
-    handler: str
-    contract: str
-    operations: List[HandlerOperationConfig]
+class OperationHandlerConfig:
+    callback: str
+    pattern: List[OperationHandlerPatternConfig]
 
     def __attrs_post_init__(self):
-        self._handler_callable = None
+        self._callback_fn = None
 
     @property
-    def handler_callable(self) -> Callable:
-        if self._handler_callable is None:
+    def callback_fn(self) -> Callable:
+        if self._callback_fn is None:
             raise Exception('Handler callable is not registered')
-        return self._handler_callable
+        return self._callback_fn
 
-    @handler_callable.setter
-    def handler_callable(self, fn: Callable) -> None:
-        self._handler_callable = fn
+    @callback_fn.setter
+    def callback_fn(self, fn: Callable) -> None:
+        self._callback_fn = fn
+
+
+@dataclass(kw_only=True)
+class OperationIndexConfig:
+    datasource: str
+    contract: str
+    first_block: int = 0
+    handlers: List[OperationHandlerConfig]
+
+
+@dataclass(kw_only=True)
+class BigmapdiffHandlerPatternConfig:
+    name: str
+    entry_type: str
+
+
+@dataclass(kw_only=True)
+class BigmapdiffHandlerConfig:
+    callback: str
+    pattern: List[BigmapdiffHandlerPatternConfig]
+
+
+@dataclass(kw_only=True)
+class BigmapdiffIndexConfig:
+    datasource: str
+    contract: str
+    handlers: List[BigmapdiffHandlerConfig]
+
+
+@dataclass(kw_only=True)
+class BlockHandlerConfig:
+    callback: str
+    pattern: None = None
+
+
+@dataclass(kw_only=True)
+class BlockIndexConfig:
+    datasource: str
+    handlers: List[BlockHandlerConfig]
+
+
+@dataclass(kw_only=True)
+class ContractConfig:
+    network: Optional[str] = None
+    address: str
+
+
+@dataclass(kw_only=True)
+class DatasourcesConfig:
+    tzkt: TzktDatasourceConfig
+
+
+@dataclass(kw_only=True)
+class IndexesConfig:
+    operation: Optional[OperationIndexConfig] = None
+    bigmapdiff: Optional[BigmapdiffIndexConfig] = None
+    block: Optional[BlockIndexConfig] = None
 
 
 @dataclass(kw_only=True)
 class PytezosDappConfig:
-    dapp: str
-    tzkt: TzktConfig
+    spec_version: str
+    package: str
     database: Union[SqliteDatabaseConfig, DatabaseConfig] = SqliteDatabaseConfig()
-    contracts: Dict[str, str]
-    handlers: List[HandlerConfig]
-    debug: bool = False
+    contracts: Dict[str, ContractConfig]
+    datasources: Dict[str, DatasourcesConfig]
+    indexes: Dict[str, IndexesConfig]
 
     def __attrs_post_init__(self):
         self._logger = logging.getLogger(__name__)
-        for handler in self.handlers:
-            if handler.contract in self.contracts:
-                handler.contract = self.contracts[handler.contract]
-            for operation in handler.operations:
-                if operation.contract in self.contracts:
-                    operation.contract = self.contracts[operation.contract]
-                if operation.source in self.contracts:
-                    operation.source = self.contracts[operation.source]
-                if operation.destination in self.contracts:
-                    operation.destination = self.contracts[operation.destination]
-                if operation.sender in self.contracts:
-                    operation.sender = self.contracts[operation.sender]
+        for indexes_config in self.indexes.values():
+            # FIXME: Other IndexConfig classes
+            index_config = indexes_config.operation
+            if index_config is None:
+                continue
+            index_config.contract = self.contracts[index_config.contract].address
+            for handler in index_config.handlers:
+                for pattern in handler.pattern:
+                    if pattern.source:
+                        pattern.source = self.contracts[pattern.source].address
+                    if pattern.destination:
+                        pattern.destination = self.contracts[pattern.destination].address
+                    if pattern.sender:
+                        pattern.sender = self.contracts[pattern.sender].address
 
     @classmethod
     def load(
@@ -125,24 +182,25 @@ class PytezosDappConfig:
         config = converter.structure(raw_config, cls_override or cls)
         return config
 
-    def hash(self):
-        return hashlib.sha256(json.dumps(Converter().unstructure(self)).encode()).hexdigest()[-8:]
-
     def initialize(self) -> None:
-        self._logger.info('Setting up handlers and parameters for dapp `%s`', self.dapp)
-        handlers = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.handlers')
+        self._logger.info('Setting up handlers and types for package `%s`', self.package)
 
-        for handler_config in self.handlers:
-            self._logger.info('Registering handler `%s`', handler_config.handler)
-            handler = getattr(handlers, handler_config.handler)
-            handler_config.handler_callable = handler
+        for indexes_config in self.indexes.values():
+            # FIXME: Handle other index types
+            index_config = indexes_config.operation
+            if not index_config:
+                continue
+            for handler in index_config.handlers:
+                self._logger.info('Registering handler callback`%s`', handler.callback)
+                handler_module = importlib.import_module(f'{self.package}.handlers.{handler.callback}')
+                handler_fn = getattr(handler_module, handler.callback)
+                handler.handler_fn = handler_fn
 
-            for handler_operation in handler_config.operations:
-                self._logger.info('Registering parameters type `%s`', handler_operation.entrypoint)
-                parameters_type_name = handler_operation.entrypoint.title().replace('_', '')
-                parameters_module = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.parameters.{handler_operation.contract}.{handler_operation.entrypoint}')
-                parameters_type = getattr(parameters_module, parameters_type_name)
-                handler_operation.parameters_type = parameters_type
+                for pattern in handler.pattern:
+                    self._logger.info('Registering parameter type `%s`', pattern.parameter_type)
+                    parameter_type_module = importlib.import_module(f'{self.package}.types.{pattern.destination}.parameter.{pattern.entrypoint}')
+                    parameter_type_cls = getattr(parameter_type_module, pattern.parameter_type)
+                    pattern.parameter_type = parameter_type_cls
 
 
 @dataclass(kw_only=True)

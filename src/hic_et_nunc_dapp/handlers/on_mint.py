@@ -1,11 +1,11 @@
 import logging
 from gettext import translation
-from pytezos_dapps.dapps.hic_et_nunc.parameters.KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9.mint_OBJKT import MintObjkt
-from pytezos_dapps.dapps.hic_et_nunc.parameters.KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton.mint import Mint
 
 from pytezos_dapps.models import HandlerContext
 
-from .models import Address, Token
+from hic_et_nunc_dapp.models import Address, Token
+from hic_et_nunc_dapp.types.KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9.parameter.mint_OBJKT import MintObjkt
+from hic_et_nunc_dapp.types.KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton.parameter.mint import Mint
 
 logger = logging.getLogger(__name__)
 

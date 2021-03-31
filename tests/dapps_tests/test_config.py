@@ -4,7 +4,7 @@ from typing import Callable, Type
 from unittest import TestCase
 from pytezos_dapps.config import PytezosDappConfig
 
-from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
+from pytezos_dapps.connectors.tzkt.connector import TzktDatasource
 
 
 class ConfigTest(TestCase):

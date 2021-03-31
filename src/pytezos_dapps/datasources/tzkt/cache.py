@@ -1,19 +1,18 @@
+from copy import copy
 import logging
 from collections import namedtuple
 from typing import Awaitable, Callable, Dict, List
+from pytezos_dapps.config import OperationHandlerPatternConfig, OperationIndexConfig
 
-from pyee import AsyncIOEventEmitter  # type: ignore
-
-from pytezos_dapps.config import HandlerConfig, HandlerOperationConfig
-from pytezos_dapps.models import HandlerContext, OperationData
+from pytezos_dapps.models import OperationData
 
 OperationGroup = namedtuple('OperationGroup', ('hash', 'counter'))
 
 
 class OperationCache:
-    def __init__(self, handlers: List[HandlerConfig], level: int) -> None:
+    def __init__(self, index_config: OperationIndexConfig, level: int) -> None:
         super().__init__()
-        self._handlers = handlers
+        self._index_config = index_config
         self._level = level
         self._logger = logging.getLogger(__name__)
         self._stopped = False
@@ -29,36 +28,31 @@ class OperationCache:
         self._operations[key].append(operation)
 
     @classmethod
-    def match_handler(cls, handler_operation: HandlerOperationConfig, operation: OperationData) -> bool:
-        if handler_operation.entrypoint != operation.entrypoint:
+    def match_operation(cls, pattern_config: OperationHandlerPatternConfig, operation: OperationData) -> bool:
+        if pattern_config.entrypoint != operation.entrypoint:
             return False
-        if handler_operation.sender and handler_operation.sender != operation.sender_address:
-            return False
-        if handler_operation.destination and handler_operation.destination != operation.target_address:
-            return False
-        if handler_operation.source and handler_operation.source != operation.initiator_address:
+        if pattern_config.destination != operation.target_address:
             return False
         return True
 
     async def process(
         self,
-        callback: Callable[[HandlerConfig, List[OperationData]], Awaitable[None]],
+        callback: Callable[[OperationIndexConfig, List[OperationData]], Awaitable[None]],
     ) -> int:
         keys = list(self._operations.keys())
         self._logger.info('Matching %s operation groups', len(keys))
-        for key in keys:
-            for handler in self._handlers:
+        for key, operations in copy(self._operations).items():
+            for handler_config in self._index_config.handlers:
                 matched_operations = []
-                for handler_operation in handler.operations:
-                    operations = self._operations.get(key, [])
+                for pattern_config in handler_config.pattern:
                     for operation in operations:
-                        handler_matched = self.match_handler(handler_operation, operation)
-                        if handler_matched:
+                        operation_matched = self.match_operation(pattern_config, operation)
+                        if operation_matched:
                             matched_operations.append(operation)
 
-                if len(matched_operations) == len(handler.operations):
-                    self._logger.info('Handler `%s` matched! %s', handler.handler, key)
-                    await callback(handler, matched_operations)
+                if len(matched_operations) == len(handler_config.pattern):
+                    self._logger.info('Handler `%s` matched! %s', handler_config.handler, key)
+                    await callback(handler_config, matched_operations)
                     if key in self._operations:
                         del self._operations[key]
 

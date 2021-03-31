@@ -10,7 +10,7 @@ from tortoise import Tortoise
 
 from pytezos_dapps import __version__
 from pytezos_dapps.config import LoggingConfig, PytezosDappConfig
-from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
+from pytezos_dapps.datasources.tzkt.datasource import TzktDatasource
 from pytezos_dapps.models import State
 
 _logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ async def run(_ctx, config: str, logging_config: str) -> None:
     try:
         path = join(os.getcwd(), logging_config)
         LoggingConfig.load(path).apply()
-    except Exception:
+    except FileNotFoundError:
         path = join(dirname(__file__), 'configs', logging_config)
         LoggingConfig.load(path).apply()
 
@@ -49,7 +49,7 @@ async def run(_ctx, config: str, logging_config: str) -> None:
     try:
         path = join(os.getcwd(), config)
         _config = PytezosDappConfig.load(path)
-    except Exception:
+    except FileNotFoundError:
         path = join(dirname(__file__), 'configs', config)
         _config = PytezosDappConfig.load(path)
 
@@ -60,27 +60,23 @@ async def run(_ctx, config: str, logging_config: str) -> None:
         await Tortoise.init(
             db_url=_config.database.connection_string,
             modules={
-                'models': [f'pytezos_dapps.dapps.{_config.dapp}.models'],
+                'models': [f'{_config.package}.models'],
                 'int_models': ['pytezos_dapps.models'],
             },
         )
         await Tortoise.generate_schemas()
 
-        config_hash = _config.hash()
-        _logger.info('Fetching indexer state for config %s', config_hash)
+        _logger.info('Fetching indexer state for dapp `%s`', _config.package)
 
-        state, _ = await State.get_or_create(dapp=_config.dapp, defaults={'hash': config_hash})
-        if state.hash != config_hash:
-            raise Exception(
-                f'Config has been changed (hash {config_hash}, expected {state.hash}). '
-                f'Cleanup database or update `state` table before starting indexing again.'
-            )
+        state, _ = await State.get_or_create(dapp=_config.package)
 
-        _logger.info('Creating connector')
-        connector = TzktEventsConnector(_config.tzkt.url, _config.handlers, state)
+        _logger.info('Creating datasource')
+        datasource_config = list(_config.datasources.values())[0].tzkt
+        index_config = list(_config.indexes.values())[0].operation
+        datasource = TzktDatasource(datasource_config.url, index_config, state)
 
-        _logger.info('Starting connector')
-        await connector.start()
+        _logger.info('Starting datasource')
+        await datasource.start()
 
     finally:
         await Tortoise.close_connections()

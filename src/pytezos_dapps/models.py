@@ -5,12 +5,11 @@ from typing import Any, Generic, Optional, TypeVar
 from attr import dataclass
 from tortoise import Model, fields
 
-ParametersT = TypeVar('ParametersT')
+ParameterType = TypeVar('ParameterType')
 
 
 class State(Model):
     dapp = fields.CharField(128)
-    hash = fields.CharField(128)
     level = fields.IntField(default=0)
 
 
@@ -43,14 +42,14 @@ class OperationData:
     target_address: str
     amount: int
     entrypoint: Optional[str] = None
-    parameters_json: Optional[Any] = None
+    parameter_json: Optional[Any] = None
     status: str
     has_internals: bool
-    parameters: Optional[str] = None
+    parameter: Optional[str] = None
 
 
 @dataclass(kw_only=True)
-class HandlerContext(Generic[ParametersT]):
+class HandlerContext(Generic[ParameterType]):
     data: OperationData
     transaction: Transaction
-    parameters: ParametersT
+    parameter: ParameterType

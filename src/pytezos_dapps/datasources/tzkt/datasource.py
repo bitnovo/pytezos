@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 from cattrs_extras.converter import Converter
@@ -9,22 +9,21 @@ from signalrcore.hub.base_hub_connection import BaseHubConnection  # type: ignor
 from signalrcore.hub_connection_builder import HubConnectionBuilder  # type: ignore
 from signalrcore.transport.websockets.connection import ConnectionState  # type: ignore
 from tortoise.transactions import in_transaction
+from pytezos_dapps.config import OperationHandlerConfig, OperationIndexConfig
 
-from pytezos_dapps.config import HandlerConfig
-from pytezos_dapps.connectors.abstract import EventsConnector
-from pytezos_dapps.connectors.tzkt.cache import OperationCache
-from pytezos_dapps.connectors.tzkt.enums import TzktMessageType
+from pytezos_dapps.datasources.tzkt.cache import OperationCache
+from pytezos_dapps.datasources.tzkt.enums import TzktMessageType
 from pytezos_dapps.models import HandlerContext, OperationData, State, Transaction
 
 TZKT_HTTP_REQUEST_LIMIT = 10000
 TZKT_HTTP_REQUEST_SLEEP = 1
 
 
-class TzktEventsConnector(EventsConnector):
-    def __init__(self, url: str, handlers: List[HandlerConfig], state: State):
+class TzktDatasource:
+    def __init__(self, url: str, index_config: OperationIndexConfig, state: State):
         super().__init__()
         self._url = url
-        self._handlers = handlers
+        self._index_config = index_config
         self._state = state
         self._synchronized = asyncio.Event()
         self._callback_lock = asyncio.Lock()
@@ -32,7 +31,7 @@ class TzktEventsConnector(EventsConnector):
         self._subscriptions: Dict[str, List[str]] = {}
         self._subscriptions_registered: List[Tuple[str, str]] = []
         self._client: Optional[BaseHubConnection] = None
-        self._cache = OperationCache(handlers, self._state.level)
+        self._cache = OperationCache(index_config, self._state.level)
 
     def _get_client(self) -> BaseHubConnection:
         if self._client is None:
@@ -54,9 +53,8 @@ class TzktEventsConnector(EventsConnector):
         return self._client
 
     async def start(self):
-        self._logger.info('Starting connector')
-        for handler in self._handlers:
-            await self.add_subscription(handler.contract)
+        self._logger.info('Starting datasource')
+        await self.add_subscription(self._index_config.contract)
 
         self._logger.info('Starting websocket client')
         await self._get_client().start()
@@ -192,7 +190,7 @@ class TzktEventsConnector(EventsConnector):
                         await self._cache.add(operation)
 
                     async with in_transaction():
-                        last_level = await self._cache.process(self.on_match)
+                        last_level = await self._cache.process(self.on_operation_match)
                         self._state.level = last_level  # type: ignore
                         await self._state.save()
 
@@ -205,23 +203,22 @@ class TzktEventsConnector(EventsConnector):
         if address not in self._subscriptions:
             self._subscriptions[address] = types
 
-    async def on_match(self, handler_config: HandlerConfig, operations: List[OperationData]):
-        handler = handler_config.handler_callable
+    async def on_operation_match(self, handler_config: OperationHandlerConfig, operations: List[OperationData]):
         args = []
-        for handler_operation, operation in zip(handler_config.operations, operations):
+        for pattern_config, operation in zip(handler_config.pattern, operations):
             transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
 
-            parameters_type = handler_operation.parameters_type
-            parameters = parameters_type.parse_obj(operation.parameters_json)
+            parameter_type = pattern_config.parameter_type
+            parameter = parameter_type.parse_obj(operation.parameters_json)
 
             context = HandlerContext(
                 data=operation,
                 transaction=transaction,
-                parameters=parameters,
+                parameter=parameter,
             )
             args.append(context)
 
-        await handler(*args)
+        await handler_config.callback_fn(*args)
 
     @classmethod
     def convert_operation(cls, operation_json: Dict[str, Any]) -> OperationData:
@@ -238,6 +235,6 @@ class TzktEventsConnector(EventsConnector):
         operation_json['target_alias'] = operation_json['target'].get('alias')
         operation_json['target_address'] = operation_json['target']['address']
         operation_json['entrypoint'] = operation_json.get('parameter', {}).get('entrypoint')
-        operation_json['parameters_json'] = operation_json.get('parameter', {}).get('value')
+        operation_json['parameter_json'] = operation_json.get('parameter', {}).get('value')
         operation_json['has_internals'] = operation_json['hasInternals']
         return Converter().structure(operation_json, OperationData)

@@ -2,7 +2,7 @@ import json
 from os.path import dirname, join
 from unittest import TestCase
 
-from pytezos_dapps.connectors.tzkt.connector import TzktEventsConnector
+from pytezos_dapps.connectors.tzkt.connector import TzktDatasource
 
 
 class TzktConnectorTest(TestCase):
@@ -11,5 +11,5 @@ class TzktConnectorTest(TestCase):
             operations_message = json.load(file)
 
         for operation_json in operations_message['data']:
-            operation = TzktEventsConnector.convert_operation(operation_json)
+            operation = TzktDatasource.convert_operation(operation_json)
 

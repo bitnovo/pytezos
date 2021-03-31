@@ -5,13 +5,17 @@
       format: "%(levelname)-8s %(name)-45s %(message)s"
   handlers:
     console:
-      level: INFO
+      level: DEBUG
       formatter: brief
       class: logging.StreamHandler
       stream : ext://sys.stdout
   loggers:
     SignalRCoreClient:
       formatter: brief
+    pytezos_dapps.datasources.tzkt.datasource:
+      level: DEBUG
+    pytezos_dapps.datasources.tzkt.cache:
+      level: DEBUG
   root:
     level: INFO
     handlers:

@@ -167,6 +167,7 @@ class TzktDatasource:
         sync=False,
     ) -> None:
         self._logger.info('Got operation message on %s', address)
+        self._logger.debug('%s', message)
         for item in message:
             message_type = TzktMessageType(item['type'])
 

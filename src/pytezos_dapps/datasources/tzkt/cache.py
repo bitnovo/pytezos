@@ -27,12 +27,14 @@ class OperationCache:
             self._operations[key] = []
         self._operations[key].append(operation)
 
-    @classmethod
-    def match_operation(cls, pattern_config: OperationHandlerPatternConfig, operation: OperationData) -> bool:
+    def match_operation(self, pattern_config: OperationHandlerPatternConfig, operation: OperationData) -> bool:
+        self._logger.debug('pattern: %s, %s', pattern_config.entrypoint, pattern_config.destination)
+        self._logger.debug('operation: %s, %s', operation.entrypoint, operation.target_address)
         if pattern_config.entrypoint != operation.entrypoint:
             return False
         if pattern_config.destination != operation.target_address:
             return False
+        self._logger.debug('Match!')
         return True
 
     async def process(
@@ -42,6 +44,7 @@ class OperationCache:
         keys = list(self._operations.keys())
         self._logger.info('Matching %s operation groups', len(keys))
         for key, operations in copy(self._operations).items():
+            self._logger.debug('Processing %s', key)
             for handler_config in self._index_config.handlers:
                 matched_operations = []
                 for pattern_config in handler_config.pattern:

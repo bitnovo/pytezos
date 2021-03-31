@@ -23,7 +23,7 @@ install:
 	poetry install `if [ "${DEV}" = "0" ]; then echo "--no-dev"; fi`
 
 notebook:
-	PYTHONPATH="$$PYTHONPATH:src" poetry run jupyter notebook
+	poetry run jupyter notebook
 
 isort:
 	poetry run isort src
@@ -36,8 +36,23 @@ mypy:
 
 lint: isort pylint mypy
 
+test_contract:
+	poetry run pytest --cov-report=term-missing --cov=pytezos --cov-report=xml -v tests/contract_tests
+
+test_dapps:
+	poetry run pytest --cov-report=term-missing --cov=pytezos_dapps --cov-report=xml -v tests/dapps_tests
+
+test_integration:
+	poetry run pytest --cov-report=term-missing --cov=pytezos --cov=pytezos_dapps --cov-report=xml -v tests/integration_tests
+
+test_sandbox:
+	poetry run pytest --cov-report=term-missing --cov=pytezos --cov-report=xml -v tests/sandbox_tests
+
+test_unit:
+	poetry run pytest --cov-report=term-missing --cov=pytezos --cov=pytezos_dapps --cov-report=xml -v tests/unit_tests
+
 test:
-	PYTHONPATH="$$PYTHONPATH:src" poetry run pytest --cov-report=term-missing --cov=pytezos --cov-report=xml -v .
+	poetry run pytest --cov-report=term-missing --cov=pytezos --cov=pytezos_dapps --cov-report=xml -v tests
 
 cover:
 	poetry run diff-cover coverage.xml

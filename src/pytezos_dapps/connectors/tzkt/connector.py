@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from tortoise.transactions import in_transaction
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -9,6 +8,7 @@ from cattrs_extras.converter import Converter
 from signalrcore.hub.base_hub_connection import BaseHubConnection  # type: ignore
 from signalrcore.hub_connection_builder import HubConnectionBuilder  # type: ignore
 from signalrcore.transport.websockets.connection import ConnectionState  # type: ignore
+from tortoise.transactions import in_transaction
 
 from pytezos_dapps.config import HandlerConfig
 from pytezos_dapps.connectors.abstract import EventsConnector
@@ -30,6 +30,7 @@ class TzktEventsConnector(EventsConnector):
         self._callback_lock = asyncio.Lock()
         self._logger = logging.getLogger(__name__)
         self._subscriptions: Dict[str, List[str]] = {}
+        self._subscriptions_registered: List[Tuple[str, str]] = []
         self._client: Optional[BaseHubConnection] = None
         self._cache = OperationCache(handlers, self._state.level)
 
@@ -70,10 +71,14 @@ class TzktEventsConnector(EventsConnector):
 
     async def subscribe_to_operations(self, address: str, types: List[str]) -> None:
         self._logger.info('Subscribing to %s, %s', address, types)
-        self._get_client().on(
-            'operations',
-            partial(self.on_operation_message, address=address),
-        )
+
+        key = ('operations', address)
+        if key not in self._subscriptions_registered:
+            self._subscriptions_registered.append(key)
+            self._get_client().on(
+                'operations',
+                partial(self.on_operation_message, address=address),
+            )
 
         while self._get_client().transport.state != ConnectionState.connected:
             await asyncio.sleep(0.1)
@@ -144,7 +149,7 @@ class TzktEventsConnector(EventsConnector):
                     else:
                         break
 
-                if len(operations) < TZKT_HTTP_REQUEST_LIMIT:
+                if len(fetched_operations) < TZKT_HTTP_REQUEST_LIMIT:
                     break
 
                 offset += TZKT_HTTP_REQUEST_LIMIT
@@ -154,6 +159,7 @@ class TzktEventsConnector(EventsConnector):
             if operations:
                 await _process_operations(address, operations)
 
+        self._logger.info('Synchronization finished')
         self._synchronized.set()
 
     async def on_operation_message(
@@ -168,7 +174,7 @@ class TzktEventsConnector(EventsConnector):
 
             if message_type == TzktMessageType.STATE:
                 level = item['state']
-                self._logger.info('Current level is %s', level)
+                self._logger.info('Got state message, current level %s, index level %s', level, self._state.level)
                 await self.fetch_operations(level)
 
             elif message_type == TzktMessageType.DATA:

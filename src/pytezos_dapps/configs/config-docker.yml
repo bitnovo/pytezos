@@ -1,3 +1,4 @@
+dapp: hic_et_nunc
 database:
   driver: postgres
   host: db

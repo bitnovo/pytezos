@@ -1,8 +1,8 @@
 import hashlib
+import importlib
 import json
 import logging.config
 import os
-from symbol import parameters
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from attr import dataclass
@@ -86,6 +86,7 @@ class HandlerConfig:
 
 @dataclass(kw_only=True)
 class PytezosDappConfig:
+    dapp: str
     tzkt: TzktConfig
     database: Union[SqliteDatabaseConfig, DatabaseConfig] = SqliteDatabaseConfig()
     contracts: Dict[str, str]
@@ -93,6 +94,7 @@ class PytezosDappConfig:
     debug: bool = False
 
     def __attrs_post_init__(self):
+        self._logger = logging.getLogger(__name__)
         for handler in self.handlers:
             if handler.contract in self.contracts:
                 handler.contract = self.contracts[handler.contract]
@@ -123,6 +125,21 @@ class PytezosDappConfig:
 
     def hash(self):
         return hashlib.sha256(json.dumps(Converter().unstructure(self)).encode()).hexdigest()[-8:]
+
+    def initialize(self) -> None:
+        self._logger.info('Setting up handlers and parameters for dapp `%s`', self.dapp)
+        handlers = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.handlers')
+        parameters = importlib.import_module(f'pytezos_dapps.dapps.{self.dapp}.parameters')
+
+        for handler_config in self.handlers:
+            self._logger.info('Registering handler `%s`', handler_config.handler)
+            handler = getattr(handlers, handler_config.handler)
+            handler_config.handler_callable = handler
+
+            for handler_operation in handler_config.operations:
+                self._logger.info('Registering parameters type `%s`', handler_operation.parameters)
+                parameters_type = getattr(parameters, handler_operation.parameters)
+                handler_operation.parameters_type = parameters_type
 
 
 @dataclass(kw_only=True)

@@ -1,6 +1,7 @@
 import logging
 from collections import namedtuple
-from typing import Callable, Dict, List
+from typing import Awaitable, Callable, Dict, List
+
 from pyee import AsyncIOEventEmitter  # type: ignore
 
 from pytezos_dapps.config import HandlerConfig, HandlerOperationConfig
@@ -41,7 +42,7 @@ class OperationCache:
 
     async def process(
         self,
-        callback: Callable[[HandlerConfig, List[OperationData]], None],
+        callback: Callable[[HandlerConfig, List[OperationData]], Awaitable[None]],
     ) -> int:
         keys = list(self._operations.keys())
         self._logger.info('Matching %s operation groups', len(keys))

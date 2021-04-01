@@ -16,6 +16,7 @@ classifiers = [
 packages = [
     { include = "pytezos", from = "src" },
     { include = "pytezos_dapps", from = "src" },
+    { include = "hic_et_nunc_dapp", from = "src" },
 ]
 
 [tool.poetry.dependencies]

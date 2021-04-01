@@ -1,10 +1,7 @@
-from cgitb import handler
-import hashlib
 import importlib
-import json
 import logging.config
 import os
-from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from attr import dataclass
 from cattrs_extras.converter import Converter
@@ -60,7 +57,7 @@ class OperationHandlerPatternConfig:
         return self._parameter_type_cls
 
     @parameter_type_cls.setter
-    def parameters_type_cls(self, typ: Type) -> None:
+    def parameter_type_cls(self, typ: Type) -> None:
         self._parameter_type_cls = typ
 
 
@@ -200,9 +197,11 @@ class PytezosDappConfig:
 
                 for pattern in handler.pattern:
                     self._logger.info('Registering parameter type `%s`', pattern.parameter_type)
-                    parameter_type_module = importlib.import_module(f'{self.package}.types.{pattern.contract}.parameter.{pattern.entrypoint}')
+                    parameter_type_module = importlib.import_module(
+                        f'{self.package}.types.{pattern.contract}.parameter.{pattern.entrypoint}'
+                    )
                     parameter_type_cls = getattr(parameter_type_module, pattern.parameter_type)
-                    pattern.parameter_type = parameter_type_cls
+                    pattern.parameter_type_cls = parameter_type_cls
 
 
 @dataclass(kw_only=True)

@@ -9,8 +9,8 @@ from signalrcore.hub.base_hub_connection import BaseHubConnection  # type: ignor
 from signalrcore.hub_connection_builder import HubConnectionBuilder  # type: ignore
 from signalrcore.transport.websockets.connection import ConnectionState  # type: ignore
 from tortoise.transactions import in_transaction
-from pytezos_dapps.config import OperationHandlerConfig, OperationIndexConfig
 
+from pytezos_dapps.config import OperationHandlerConfig, OperationIndexConfig
 from pytezos_dapps.datasources.tzkt.cache import OperationCache
 from pytezos_dapps.datasources.tzkt.enums import TzktMessageType
 from pytezos_dapps.models import HandlerContext, OperationData, State, Transaction
@@ -110,7 +110,6 @@ class TzktDatasource:
         return operations
 
     async def fetch_operations(self, last_level: int) -> None:
-
         async def _process_operations(address, operations):
             self._logger.info('Processing %s operations of level %s', len(operations), operations[0]['level'])
             await self.on_operation_message(
@@ -141,8 +140,8 @@ class TzktDatasource:
                 while True:
                     for i in range(len(operations) - 1):
                         if operations[i]['level'] != operations[i + 1]['level']:
-                            await _process_operations(address, operations[:i + 1])
-                            operations = operations[i + 1:]
+                            await _process_operations(address, operations[: i + 1])
+                            operations = operations[i + 1 :]
                             break
                     else:
                         break
@@ -209,7 +208,7 @@ class TzktDatasource:
         for pattern_config, operation in zip(handler_config.pattern, operations):
             transaction, _ = await Transaction.get_or_create(id=operation.id, block=operation.block)
 
-            parameter_type = pattern_config.parameter_type
+            parameter_type = pattern_config.parameter_type_cls
             parameter = parameter_type.parse_obj(operation.parameter_json)
 
             context = HandlerContext(

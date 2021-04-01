@@ -1,20 +1,20 @@
 import asyncio
-import importlib
 import logging
 import os
+import shutil
+import subprocess
+from contextlib import suppress
 from functools import wraps
 from os.path import dirname, join
-import shutil
+from typing import cast
 
 import click
 from tortoise import Tortoise
 
 from pytezos_dapps import __version__
-from pytezos_dapps.config import LoggingConfig, PytezosDappConfig
+from pytezos_dapps.config import LoggingConfig, OperationIndexConfig, PytezosDappConfig
 from pytezos_dapps.datasources.tzkt.datasource import TzktDatasource
 from pytezos_dapps.models import State
-from contextlib import suppress
-import subprocess
 
 _logger = logging.getLogger(__name__)
 
@@ -74,8 +74,9 @@ async def run(_ctx, config: str, logging_config: str) -> None:
         state, _ = await State.get_or_create(dapp=_config.package)
 
         _logger.info('Creating datasource')
+        # FIXME:
         datasource_config = list(_config.datasources.values())[0].tzkt
-        index_config = list(_config.indexes.values())[0].operation
+        index_config = cast(OperationIndexConfig, list(_config.indexes.values())[0].operation)
         datasource = TzktDatasource(datasource_config.url, index_config, state)
 
         _logger.info('Starting datasource')
@@ -112,7 +113,6 @@ async def generate_types(ctx, path: str):
             if not file.endswith('.json'):
                 continue
             entrypoint_name = file[:-5]
-            titled_entrypoint_name = entrypoint_name.title().replace('_', '')
 
             input_path = join(root, file)
             output_path = join(root.replace(schemas_dir, types_dir), file.replace('.json', '.py'))
@@ -126,9 +126,9 @@ async def generate_types(ctx, path: str):
                     '--class-name',
                     entrypoint_name,
                     '--disable-timestamp',
-                ]
+                ],
+                check=True,
             )
-
 
 
 async def purge():

@@ -1,9 +1,9 @@
-from copy import copy
 import logging
 from collections import namedtuple
+from copy import copy
 from typing import Awaitable, Callable, Dict, List
-from pytezos_dapps.config import OperationHandlerPatternConfig, OperationIndexConfig
 
+from pytezos_dapps.config import OperationHandlerConfig, OperationHandlerPatternConfig, OperationIndexConfig
 from pytezos_dapps.models import OperationData
 
 OperationGroup = namedtuple('OperationGroup', ('hash', 'counter'))
@@ -43,7 +43,7 @@ class OperationCache:
 
     async def process(
         self,
-        callback: Callable[[OperationIndexConfig, List[OperationData]], Awaitable[None]],
+        callback: Callable[[OperationHandlerConfig, List[OperationData]], Awaitable[None]],
     ) -> int:
         keys = list(self._operations.keys())
         self._logger.info('Matching %s operation groups', len(keys))

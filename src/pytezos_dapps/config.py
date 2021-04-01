@@ -42,6 +42,7 @@ class TzktDatasourceConfig:
 
 @dataclass(kw_only=True)
 class OperationHandlerPatternConfig:
+    contract: str
     entrypoint: str
     parameter_type: str
 
@@ -158,6 +159,7 @@ class PytezosDappConfig:
             index_config.contract = self.contracts[index_config.contract].address
             for handler in index_config.handlers:
                 for pattern in handler.pattern:
+                    pattern.contract = self.contracts[pattern.contract].address
                     if pattern.source:
                         pattern.source = self.contracts[pattern.source].address
                     if pattern.destination:
@@ -198,7 +200,7 @@ class PytezosDappConfig:
 
                 for pattern in handler.pattern:
                     self._logger.info('Registering parameter type `%s`', pattern.parameter_type)
-                    parameter_type_module = importlib.import_module(f'{self.package}.types.{pattern.destination}.parameter.{pattern.entrypoint}')
+                    parameter_type_module = importlib.import_module(f'{self.package}.types.{pattern.contract}.parameter.{pattern.entrypoint}')
                     parameter_type_cls = getattr(parameter_type_module, pattern.parameter_type)
                     pattern.parameter_type = parameter_type_cls
 

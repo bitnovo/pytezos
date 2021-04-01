@@ -23,32 +23,42 @@ indexes:
     operation:
       datasource: tzkt_mainnet
       contract: HEN_objkts
-      first_block: 1000000
+      first_block: 0
       handlers:
-      - callback: on_mint
-        pattern:
-        - destination: HEN_objkts
-          entrypoint: mint_OBJKT
-          parameter_type: MintOBJKT
-        - destination: HEN_minter
-          entrypoint: mint
-          parameter_type: Mint
+
+        - callback: on_mint
+          pattern:
+            - contract: HEN_objkts
+              destination: HEN_objkts
+              entrypoint: mint_OBJKT
+              parameter_type: MintOBJKT
+            - contract: HEN_minter
+              destination: HEN_minter
+              entrypoint: mint
+              parameter_type: Mint
+
+        - callback: on_transfer
+          pattern:
+            - contract: HEN_minter
+              sender: HEN_objkts
+              entrypoint: transfer
+              parameter_type: Transfer
 
   bigmaps_mainnet:
     bigmapdiff:
       datasource: tzkt_mainnet
       contract: HEN_objkts
       handlers:
-      - callback: on_token
-        pattern:
-        - name: ledger
-          entry_type: LedgerEntry
-        - name: token_metadata
-          entry_type: TokenMetadataEntry
+        - callback: on_token
+          pattern:
+            - name: ledger
+              entry_type: LedgerEntry
+            - name: token_metadata
+              entry_type: TokenMetadataEntry
 
   blocks_mainnet:
     block:
       datasource: tzkt_mainnet
       handlers:
-      - callback: on_block
-        pattern:
+        - callback: on_block
+          pattern:

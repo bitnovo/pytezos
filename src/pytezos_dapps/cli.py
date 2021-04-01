@@ -124,7 +124,8 @@ async def generate_types(ctx, path: str):
                     '--output',
                     output_path,
                     '--class-name',
-                    entrypoint_name
+                    entrypoint_name,
+                    '--disable-timestamp',
                 ]
             )
 

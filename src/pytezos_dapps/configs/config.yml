@@ -29,7 +29,7 @@ indexes:
         pattern:
         - destination: HEN_objkts
           entrypoint: mint_OBJKT
-          parameter_type: MintObjkt
+          parameter_type: MintOBJKT
         - destination: HEN_minter
           entrypoint: mint
           parameter_type: Mint

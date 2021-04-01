@@ -4,6 +4,7 @@ import logging
 import os
 from functools import wraps
 from os.path import dirname, join
+import shutil
 
 import click
 from tortoise import Tortoise
@@ -12,6 +13,8 @@ from pytezos_dapps import __version__
 from pytezos_dapps.config import LoggingConfig, PytezosDappConfig
 from pytezos_dapps.datasources.tzkt.datasource import TzktDatasource
 from pytezos_dapps.models import State
+from contextlib import suppress
+import subprocess
 
 _logger = logging.getLogger(__name__)
 
@@ -82,8 +85,49 @@ async def run(_ctx, config: str, logging_config: str) -> None:
         await Tortoise.close_connections()
 
 
-async def init():
-    ...
+@cli.command(help='Generate types')
+@click.option('--path', '-p', type=str, help='Path to the dapp root')
+@click.pass_context
+@click_async
+async def generate_types(ctx, path: str):
+    logging.basicConfig()
+
+    # TODO: Fetching schemas from TzKT
+    _logger.info('Fetching JSON schemas')
+    schemas_dir = join(path, 'schemas')
+
+    _logger.info('Removing existing types')
+    types_dir = join(path, 'types')
+    with suppress(FileNotFoundError):
+        shutil.rmtree(types_dir)
+    os.mkdir(types_dir)
+
+    for root, dirs, files in os.walk(schemas_dir):
+        for dir in dirs:
+            dir_path = join(root.replace(schemas_dir, types_dir), dir)
+            os.mkdir(dir_path)
+            with open(join(dir_path, '__init__.py'), 'w'):
+                pass
+        for file in files:
+            if not file.endswith('.json'):
+                continue
+            entrypoint_name = file[:-5]
+            titled_entrypoint_name = entrypoint_name.title().replace('_', '')
+
+            input_path = join(root, file)
+            output_path = join(root.replace(schemas_dir, types_dir), file.replace('.json', '.py'))
+            subprocess.run(
+                [
+                    'datamodel-codegen',
+                    '--input',
+                    input_path,
+                    '--output',
+                    output_path,
+                    '--class-name',
+                    entrypoint_name
+                ]
+            )
+
 
 
 async def purge():

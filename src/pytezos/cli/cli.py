@@ -254,7 +254,7 @@ def ligo_compile_contract(
         )
         if not detach:
             for line in container.logs(stream=True):
-                logger.info(line.decode('utf-8').rstrip())
+                print(line.decode('utf-8').rstrip())
     else:
         logger.error('No local contract found. Please ensure a valid contract is present or specify path.')
 
@@ -283,7 +283,7 @@ def ligo_compile_storage(
         )
         if not detach:
             for line in container.logs(stream=True):
-                logger.info(line.decode('utf-8').rstrip())
+                print(line.decode('utf-8').rstrip())
     else:
         logger.error('No local contract found. Please ensure a valid contract is present or specify path.')
 
@@ -312,7 +312,7 @@ def ligo_invoke_contract(
         )
         if not detach:
             for line in container.logs(stream=True):
-                logger.info(line.decode('utf-8').rstrip())
+                print(line.decode('utf-8').rstrip())
     else:
         logger.error('No local contract found. Please ensure a valid contract is present or specify path.')
 

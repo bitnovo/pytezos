@@ -218,9 +218,8 @@ def run_ligo_container(
                 with open(filename, 'rb') as current_file:
                     current_file_data = current_file.read()
                     current_file_buffer = io.BytesIO(initial_bytes=current_file_data)
-                    info = tarfile.TarInfo(filename)
-                    info.size = len(current_file_data)
-                    archive.addfile(info, current_file_buffer)
+                    _, short_filename = split(filename)
+                    archive.add(filename, arcname=short_filename)
         buffer.seek(0)
         container.put_archive(
             '/root/',
@@ -255,7 +254,7 @@ def ligo_compile_contract(
         )
         if not detach:
             for line in container.logs(stream=True):
-                logger.info(line.decode('utf-8'))
+                logger.info(line.decode('utf-8').rstrip())
     else:
         logger.error('No local contract found. Please ensure a valid contract is present or specify path.')
 
@@ -275,7 +274,7 @@ def ligo_compile_storage(
     expression: str,
     detach: bool,
 ):
-    path = get_local_contract_path(path)
+    path = get_local_contract_path(path, extension='ligo')
     if path:
         container = run_ligo_container(
             tag=tag,
@@ -284,7 +283,7 @@ def ligo_compile_storage(
         )
         if not detach:
             for line in container.logs(stream=True):
-                logger.info(line)
+                logger.info(line.decode('utf-8').rstrip())
     else:
         logger.error('No local contract found. Please ensure a valid contract is present or specify path.')
 
@@ -304,7 +303,7 @@ def ligo_invoke_contract(
     expression: str,
     detach: bool,
 ):
-    path = get_local_contract_path(path)
+    path = get_local_contract_path(path, extension='ligo')
     if path:
         container = run_ligo_container(
             tag=tag,
@@ -313,7 +312,7 @@ def ligo_invoke_contract(
         )
         if not detach:
             for line in container.logs(stream=True):
-                logger.info(line)
+                logger.info(line.decode('utf-8').rstrip())
     else:
         logger.error('No local contract found. Please ensure a valid contract is present or specify path.')
 

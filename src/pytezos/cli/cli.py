@@ -5,7 +5,7 @@ from pprint import pformat
 from typing import Optional
 
 import click
-import docker
+import docker  # type: ignore
 
 from pytezos import ContractInterface, __version__, pytezos
 from pytezos.cli.github import create_deployment, create_deployment_status
@@ -203,7 +203,7 @@ def run_ligo_container(
 ):
     try:
         client = get_docker_client()
-        return client.containers.run(image=f'ligolang/ligo:{tag}', command=comand)
+        return client.containers.run(image=f'ligolang/ligo:{tag}', command=command)
     except docker.errors.ImageNotFound:
         logger.error('Ligo compiler not found. Please run update-ligo first.')
 

@@ -230,7 +230,7 @@ def ligo_compile_contract(
 @click.option('--entry-point', '-ep', type=str, help='Entrypoint for the storage')
 @click.option('--expression', '-ex', type=str, help='Expression for the storage')
 @click.pass_context
-def ligo_compile_contract(
+def ligo_compile_storage(
     _ctx,
     tag: str,
     path: str,

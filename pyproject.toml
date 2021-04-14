@@ -20,7 +20,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.7"
 pyblake2 = "^1.1.2"
-base58 = "^1.0.3"
+base58 = ">=1.0.3"
 requests = "^2.21.0"
 pendulum = "*"
 loguru = "*"
